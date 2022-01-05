@@ -16,26 +16,26 @@ from collections import deque
 from . functions import baseline_correct, filter_spectrum
 
 VOLTAGE_RANGES = {
-    '10MV' : 0.01,
-    '20MV' : 0.02,
-    '50MV' : 0.05,
-    '100MV': 0.1,
-    '200MV': 0.2,
-    '500MV': 0.5,
+    #'10MV' : 0.01,
+    #'20MV' : 0.02,
+    #'50MV' : 0.05,
+    #'100MV': 0.1,
+    #'200MV': 0.2,
+    #'500MV': 0.5,
     '1V'   : 1,
     '2V'   : 2,
     '5V'   : 5,
     '10V'  : 10,
     '20V'  : 20,
-    '50V'  : 50
+    #'50V'  : 50
 }
 
 CHANNELS = {
-    'A': 'Channel A',
-    'B': 'Channel B',
-    'C': 'Channel C (A SCA)',
-    'D': 'Channel D (B SCA)',
-    'E': 'Channels C+D'
+    'A': 'Channel A (SCA C)',
+    'B': 'Channel B (SCA D)',
+    'C': 'Channel C',
+    'D': 'Channel D',
+    'E': 'Channels A & B'
 }
 
 UNIT_RANGES = {
@@ -48,13 +48,13 @@ def add_menu(qtapplication):
 
     menubar = QtGui.QMenuBar(qtapplication)
     qtapplication.mainbox.layout().addWidget(menubar)
-
+    
     # EXPERIMENT MENU
     menuSettings = menubar.addMenu("Experiment")
     measurement1Action = menuSettings.addAction("Measurement 1 - Background rate")
     measurement1Action.triggered.connect(qtapplication.measurement1)
     measurement1Action.setShortcut('Ctrl+1')
-
+ 
     measurement2Action = menuSettings.addAction("Measurement 2 - True coincidence test")
     measurement2Action.triggered.connect(qtapplication.measurement2)
     measurement2Action.setShortcut('Ctrl+2')
@@ -71,7 +71,7 @@ def add_menu(qtapplication):
     # TODO: Do we need a collected view of the measurement variables,
     # for example pop up window with a table showing all measurement and final data?
     # Link to the csv files?
-
+    
     # DATA MANU
     menuData = menubar.addMenu("Data")
     # Start saving data to the csv files.
@@ -130,9 +130,9 @@ def add_menu(qtapplication):
     menuRun.addAction(resumeAction)
     resumeAction.triggered.connect(qtapplication.resume)
     resumeAction.setShortcut('Ctrl+R')
-
+    
     # TODO: Do we need clear graphs menu?
-
+    
     # QUIT MENU
     menuQuit = menubar.addMenu("Quit")
     quitAction = QtGui.QAction(QtGui.QIcon('exit24.png'), 'Quit', qtapplication)
@@ -158,7 +158,7 @@ def add_bin_dial(qtapp, min_value = 16, max_value = 256, default_value = 64):
 
     # making label multiline
     label.setWordWrap(True)
-
+    
     def value_changed():
         qtapp.set_bin_count(dial.value())
         # setting text to the label
@@ -177,18 +177,18 @@ def add_range_slider(qtapp, a, b):
     slider.setRange(a, b)
     slider.setBackgroundStyle('background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #222, stop:1 #333);')
     slider.handle.setStyleSheet('background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #282, stop:1 #393);')
-
+    
     def value_changed():
         qtapp.set_discriminators(slider.getRange())
-
+    
     slider.startValueChanged.connect(value_changed)
     slider.endValueChanged.connect(value_changed)
     qtapp.add_widget(slider)
 
 class Settings(QtWidgets.QDialog):
-
+    
     def __init__(self, app, *args):
-
+        
         self.app = app
 
         QtWidgets.QDialog.__init__(self, *args)
@@ -212,7 +212,7 @@ class Settings(QtWidgets.QDialog):
         layout.addRow(QtWidgets.QLabel("Time histogram width:"), self.application_settings['time_window'])
         layout.addRow(QtWidgets.QLabel("Spectrum range:"), self.application_settings['spectrum_time_window'])
         layout.addRow(QtWidgets.QLabel("Spectrum queue size:"), self.application_settings['spectrum_queue_size'])
-
+        
         layout.addRow(QtWidgets.QLabel("Spectrum low level limit (A):"), self.application_settings['spectrum_low_limit_a'])
         layout.addRow(QtWidgets.QLabel("Spectrum low level limit (B):"), self.application_settings['spectrum_low_limit_b'])
         layout.addRow(QtWidgets.QLabel("Spectrum low level limit (C):"), self.application_settings['spectrum_low_limit_c'])
@@ -264,9 +264,9 @@ class Settings(QtWidgets.QDialog):
                 'buffer_size': QtWidgets.QLineEdit(text = str(self.original_picoscope_settings['buffer_size'])),
                 'buffer_count': QtWidgets.QLineEdit(text = str(self.original_picoscope_settings['buffer_count'])),
                 'voltage_range': (voltage_range1, voltage_range2, voltage_range3, voltage_range4)
-
+            
             }
-
+            
             self.picoscopeGroupBox = QtWidgets.QGroupBox("Picoscope")
             layout = QtWidgets.QFormLayout()
             layout.addRow(QtWidgets.QLabel("Sleep time:"), self.picoscope_settings['sleep_time'])
@@ -279,11 +279,11 @@ class Settings(QtWidgets.QDialog):
             layout.addRow(QtWidgets.QLabel("Voltage range C:"), self.picoscope_settings['voltage_range'][2])
             layout.addRow(QtWidgets.QLabel("Voltage range D:"), self.picoscope_settings['voltage_range'][3])
             self.picoscopeGroupBox.setLayout(layout)
-
+        
         buttonBox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
         buttonBox.accepted.connect(self._accept)
         buttonBox.rejected.connect(self.reject)
-
+        
         mainLayout = QtWidgets.QVBoxLayout()
         mainLayout.addWidget(self.formGroupBox)
         if self.app.has_picoscope:
@@ -296,7 +296,7 @@ class Settings(QtWidgets.QDialog):
         # Application settings
         self.app.time_window = int(self.application_settings['time_window'].text())
         self.app.spectrum_time_window = int(self.application_settings['spectrum_time_window'].text())
-
+  
         self.app.spectrum_low_limits = (
             int(self.application_settings['spectrum_low_limit_a'].text()),
             int(self.application_settings['spectrum_low_limit_b'].text()),
@@ -310,12 +310,12 @@ class Settings(QtWidgets.QDialog):
         )
 
         self.app.init_spectrum_histograms(int(self.application_settings['spectrum_queue_size'].text()))
-
+        
         # Picoscope settings, after changing the values picoscope needs to be tarted over
         if self.app.has_picoscope:
 
             settings = self.app.settings_acquire_value['value']['picoscope']
-
+        
             spectrum_low_limits = self.app.settings_acquire_value['value']['spectrum_low_limits']
 
             settings['sleep_time'] = float(self.picoscope_settings['sleep_time'].text())
@@ -338,6 +338,7 @@ class Settings(QtWidgets.QDialog):
                settings['buffer_count'] != self.original_picoscope_settings['buffer_count'] or \
                settings['voltage_range'] != self.original_picoscope_settings['voltage_range']:
 
+                self.original_picoscope_settings['voltage_range'] = settings['voltage_range']
                 settings_acquire_value = self.app.settings_acquire_value['value']
                 settings_acquire_value['spectrum_low_limits'] = self.app.spectrum_low_limits
                 settings_acquire_value['picoscope'] = settings
@@ -350,9 +351,9 @@ class Settings(QtWidgets.QDialog):
 
 
 class Signals(QtGui.QWidget):
-
+    
     def __init__(self, app, *args):
-
+        
         self.app = app
 
         QtGui.QWidget.__init__(self, *args)
@@ -362,13 +363,13 @@ class Signals(QtGui.QWidget):
         self.layout = QtGui.QGridLayout()
 
         self.curves = [
-            {'title': 'Channel A', 'curves': [], 'position': [0, 0], 'plot': None, 'pen': pg.mkPen('r', width=1)},
-            {'title': 'Channel B', 'curves': [], 'position': [0, 1], 'plot': None, 'pen': pg.mkPen('g', width=1)},
-            {'title': 'Channel C (A SCA)', 'curves': [], 'position': [1, 0], 'plot': None, 'pen': pg.mkPen('y', width=1)},
-            {'title': 'Channel D (B SCA)', 'curves': [], 'position': [1, 1], 'plot': None, 'pen': pg.mkPen('w', width=1)},
+            {'title': 'Channel A (SCA C)', 'curves': [], 'position': [0, 0], 'plot': None, 'pen': pg.mkPen('r', width=1)},
+            {'title': 'Channel B (SCA D)', 'curves': [], 'position': [0, 1], 'plot': None, 'pen': pg.mkPen('g', width=1)},
+            {'title': 'Channel C', 'curves': [], 'position': [1, 0], 'plot': None, 'pen': pg.mkPen('y', width=1)},
+            {'title': 'Channel D', 'curves': [], 'position': [1, 1], 'plot': None, 'pen': pg.mkPen('w', width=1)},
         ]
 
-        self.max_curves_in_plot = 100
+        self.max_curves_in_plot = 50
 
         # Add curves deque and plot widget instance to the layout.
         for i, data in enumerate(self.curves):
@@ -432,17 +433,17 @@ class ResultsTable(QtWidgets.QTableWidget):
         horizontal_headers = [
             'Background',
             'True coincidence',
-            'UQE coincidence',
-            'Test'
+            'UQE coincidence'
+            #'Test'
         ]
         self.setHorizontalHeaderLabels(horizontal_headers)
-
+        
         vertical_headers = [
             'Time Window (ns)',
             'Background Rate',
             'Coincident Clicks',
             'Clicks Detector A',
-            'Clicks Detector A',
+            'Clicks Detector B',
             'Rate Detector A',
             'Rate Detector B',
             'Experiment Time (s)',
@@ -487,7 +488,7 @@ class App(QtGui.QMainWindow):
         super(App, self).__init__(parent)
 
         self.setWindowTitle("Tandem Piercer Experiment - Eric Reiter & Marko Manninen © 2021-2022")
-
+        
         self.experiments_directory = 'experiments'
         self.experiment_directory = ''
 
@@ -508,8 +509,8 @@ class App(QtGui.QMainWindow):
         self.results_table = {
             'measurement1': [],
             'measurement2': [],
-            'measurement3': [],
-            'test': []
+            'measurement3': []
+            #'test': []
         }
 
         # Multiprocessing events and values that are shared between the processes.
@@ -545,7 +546,10 @@ class App(QtGui.QMainWindow):
         self.mainbox.setLayout(layout)
 
         add_menu(self)
-        add_bin_dial(self)
+        #add_bin_dial(self, min_value = 16, max_value = 256, default_value = self.bin_count)
+
+        self.average_rates = [0, 0, 0]
+        self.max_rates = [0, 0, 0]
 
         self.spectrum_counter = 0
 
@@ -558,21 +562,6 @@ class App(QtGui.QMainWindow):
         #self.spectrum_high_limits = application_configuration["spectrum_high_limits"]
 
         self.spectrum_channels = application_configuration["spectrum_channels"]
-
-        #self.spectrum1_counter_limit = 15000
-        #self.spectrum2_counter_limit = 15000
-        #self.spectrum3_counter_limit = 1250
-        #self.spectrum4_counter_limit = 1250
-
-        #self.canvas.nextRow()
-
-        #self.view = self.canvas.addViewBox()
-        #self.view.setAspectLocked(True)
-        #self.view.setRange(QtCore.QRectF(0, 0, 100, 100))
-
-        # image plot
-        #self.img = pg.ImageItem(border='w')
-        #self.view.addItem(self.img)
 
         self.channels_pulse_height_value_data = []
 
@@ -591,33 +580,7 @@ class App(QtGui.QMainWindow):
 
         self.create_line_graph()
 
-        #discriminator_low_default = 15
-        #discriminator_high_default = 45
-
-        #self.set_discriminators((discriminator_low_default, discriminator_high_default))
-        #self.discriminator_min = 0
-        #self.discriminator_max = 100
-
-        ## Now draw all points as a nicely-spaced scatter plot
-        #y = pg.pseudoScatter(vals, spacing=0.15)
-        #plt2.plot(vals, y, pen=None, symbol='o', symbolSize=5)
-        #plt2.plot(vals, y, pen=None, symbol='o', symbolSize=5, symbolPen=(255,255,255,200), symbolBrush=(0,0,255,150))
-
-        #  line plot
-        #self.lineplot = self.canvas.addPlot()
-        #self.h2 = self.lineplot.plot(pen = 'y')
-
-        #self.graphWidget = pg.PlotWidget()
-        #self.setCentralWidget(self.graphWidget)
-
         #### Set Data  #####################
-
-        #self.x = np.linspace(0, 50., num = 100)
-
-        #hour = [1,2,3,4,5,6,7,8,9,10]
-        #self.x2 = np.linspace(0, 50., num = 100)
-
-        #self.X, self.Y = np.meshgrid(self.x, self.x)
 
         #add_range_slider(self, discriminator_low_default, discriminator_high_default)
 
@@ -654,10 +617,10 @@ class App(QtGui.QMainWindow):
     ###########################################################
 
     def create_line_graph(self):
-
-        self.lineplot1 = self.canvas.addPlot(
+        
+        self.lineplot = self.canvas.addPlot(
             colspan = 1,
-            title = "Pulse rate per second (channels)",
+            title = "SCA square pulse rate per second", 
             labels = {
                 'right': "Rate / s",
                 'bottom': "Time (s)"
@@ -666,7 +629,7 @@ class App(QtGui.QMainWindow):
 
         self.init_line_graph()
 
-        leg = self.lineplot1.addLegend()
+        leg = self.lineplot.addLegend()
 
         # Replace legend paint settings.
         def paint(self, p, *args):
@@ -679,33 +642,25 @@ class App(QtGui.QMainWindow):
         # Initial x ticks starting from 0 in the right and having negative values up to the left
         self.pointer = -100
 
-        self.lineplot1a = self.lineplot1.plot(pen = 'r', name = 'A', brush = pg.mkBrush((0,0,0,100)))
-        self.lineplot1a.setPos(self.pointer, 0)
+        self.lineplota = self.lineplot.plot(pen = 'r', name = 'A')
+        self.lineplota.setPos(self.pointer, 0)
 
-        self.lineplot1b = self.lineplot1.plot(pen = 'g', name = 'B')
-        self.lineplot1b.setPos(self.pointer, 0)
+        self.lineplotb = self.lineplot.plot(pen = 'g', name = 'B')
+        self.lineplotb.setPos(self.pointer, 0)
 
-        self.lineplot1c = self.lineplot1.plot(pen = 'y', name = 'C (SCA)')
-        self.lineplot1c.setPos(self.pointer, 0)
-
-        self.lineplot1d = self.lineplot1.plot(pen = 'w', name = 'D (SCA)')
-        self.lineplot1d.setPos(self.pointer, 0)
-
-        self.lineplot1e = self.lineplot1.plot(pen = 'b', name = 'C+D')
-        self.lineplot1e.setPos(self.pointer, 0)
+        self.lineplotc = self.lineplot.plot(pen = 'b', name = 'A & B')
+        self.lineplotc.setPos(self.pointer, 0)
 
         # Stabilize and prevent graph from zooming when real time data is arriving.
-        self.lineplot1.setMouseEnabled(x=False, y=False)
+        self.lineplot.setMouseEnabled(x=False, y=False)
 
     def init_line_graph(self):
         # values for the line plots, repeat 0 n times
-        self.plot_values = {0: [], 1: [], 2: [], 3: [], 4: []}
+        self.plot_values = {0: [], 1: [], 2: []}
         plot_range = [0 for i in range(100)]
         self.plot_values[0] = plot_range[:]
         self.plot_values[1] = plot_range[:]
         self.plot_values[2] = plot_range[:]
-        self.plot_values[3] = plot_range[:]
-        self.plot_values[4] = plot_range[:]
 
         self.channels_pulse_height_value_data = []
 
@@ -717,40 +672,46 @@ class App(QtGui.QMainWindow):
 
         self.spectrumplot = self.canvas.addPlot(
             colspan = 1,
-            title = "Signal spectrum - detector A",
+            title = "Signal spectrum - Detector A (front)", 
             labels = {
                 'left': "Counts (%s)" % 0,
-                'bottom': "Picoscope digital value"
+                'bottom': "Volts"
             }
         )
 
         self.spectrum2plot = self.canvas.addPlot(
             colspan = 1,
-            title = "Signal spectrum - detector B",
+            title = "Signal spectrum - Detector B (rear)", 
             labels = {
                 'left': "Counts (%s)" % 0,
-                'bottom': "Picoscope digital value"
+                'bottom': "Volts"
             }
         )
 
         self.init_spectrum_histograms()
 
-        y, x = np.histogram(self.spectrum_data, bins = np.linspace(0, self.spectrum_time_window, self.bin_count))
-
+        y, x = np.histogram(
+            self.spectrum_data,
+            bins = np.linspace(0, VOLTAGE_RANGES[self.settings_acquire_value['value']['picoscope']['voltage_range'][2]], self.bin_count)
+        )
+    
         self.spectrumplotp = self.spectrumplot.plot(x, y,
             stepMode = True,
             fillLevel = 0,
-            brush = (0, 0, 255, 150),
-            pen = pg.mkPen('b', width=0, style=None)
+            brush = 'y',
+            pen = pg.mkPen('y', width=0, style=None)
         )
 
-        y, x = np.histogram(self.spectrum2_data, bins = np.linspace(0, self.spectrum_time_window, self.bin_count))
-
+        y, x = np.histogram(
+            self.spectrum2_data,
+            bins = np.linspace(0, VOLTAGE_RANGES[self.settings_acquire_value['value']['picoscope']['voltage_range'][3]], self.bin_count)
+        )
+        
         self.spectrum2plotp = self.spectrum2plot.plot(x, y,
             stepMode = True,
             fillLevel = 0,
-            brush = (0, 0, 255, 150),
-            pen = pg.mkPen('b', width=0, style=None)
+            brush = 'w',
+            pen = pg.mkPen('w', width=0, style=None)
         )
 
         # Stabilize and prevent graph from zooming when real time data is arriving.
@@ -778,49 +739,47 @@ class App(QtGui.QMainWindow):
 
         self.bargraph = self.canvas.addPlot(
             colspan = 1,
-            title = "Pulse rate meter (channels)",
-            labels = {
-                'right': "Green=average, Red=Max, Blue=Real time"
-            }
+            title = "SCA square pulse rate"
         )
 
         self.init_pulse_rate_graph()
 
         ax = self.bargraph.getAxis('bottom')
-        ticks = [list(zip(range(6), ('', 'A', 'B', 'C (SCA)', 'D (SCA)', 'C+D')))]
+        ticks = [list(zip(range(6), ('', 'A (SCA)', 'B (SCA)', 'A & B')))]
         ax.setTicks(ticks)
 
         self.rate_bar_graph = pg.BarGraphItem(
             # channel count, initial values, width of the bar, color of the bar
-            x = range(1, 6),
-            height = [0,0,0,0,0],
+            x = range(1, 4),
+            height = [0,0,0],
             width = 0.75,
-            brushes = ('r', 'g', 'y', 'w', 'b')
+            brushes = ('r', 'g', 'b')
         )
         self.bargraph.addItem(self.rate_bar_graph)
-
+        
         # Create a graph item for current rate indicators.
 
+        self.rate_bar_size = 0.5
         self.rate_bar_graph_nodes = pg.GraphItem()
         self.bargraph.addItem(self.rate_bar_graph_nodes)
-
+ 
         # Define positions of the rate nodes.
-        pos = np.array([[1, 0], [2, 0], [3, 0], [4, 0], [5, 0]])
+        #pos = np.array([[1, 0], [2, 0], [3, 0]])
 
         # Setting data to the graph item.
-        self.symbolBrush = ['r', 'g', 'y', 'w', 'b']
-        self.rate_bar_graph_nodes.setData(pos=pos, size=0.75, pxMode=False, symbol='+', symbolSize=1, symbolPen=self.symbolBrush)
-
+        self.symbolBrush = ['r', 'g', 'b']
+        #self.rate_bar_graph_nodes.setData(pos=pos, size=self.rate_bar_size, pxMode=False, symbol='+', symbolSize=1, symbolPen=self.symbolBrush)
+        
         # Create a graph item for max rate indicators.
         self.max_rate_bar_graph_nodes = pg.GraphItem()
         self.bargraph.addItem(self.max_rate_bar_graph_nodes)
-
+ 
         # Define positions of the rate nodes.
-        pos = np.array([[1, 0], [2, 0], [3, 0], [4, 0], [5, 0]])
+        pos = np.array([[1, 0], [2, 0], [3, 0]])
 
         # Setting data to the graph item.
-        self.max_rate_bar_graph_nodes.setData(pos=pos, size=0.75, pxMode=False, symbol='+', symbolSize=10, symbolPen=self.symbolBrush)
-
+        self.max_rate_bar_graph_nodes.setData(pos=pos, size=self.rate_bar_size, pxMode=False, symbol='+', symbolSize=10, symbolPen=self.symbolBrush, symbolBrush=self.symbolBrush)
+ 
         # Stabilize and prevent graph from zooming when real time data is arriving.
         self.bargraph.setMouseEnabled(x=False, y=False)
 
@@ -829,13 +788,11 @@ class App(QtGui.QMainWindow):
     # Create a graph item for average rate indicators.
     def init_pulse_rate_graph(self):
         self.channels_signal_rate_value_data = {
-            0: {'rate': 0, 'count': 0, 'max': 0}, # A
-            1: {'rate': 0, 'count': 0, 'max': 0}, # B
-            2: {'rate': 0, 'count': 0, 'max': 0}, # C (SCA)
-            3: {'rate': 0, 'count': 0, 'max': 0}, # D (SCA)
-            4: {'rate': 0, 'count': 0, 'max': 0}, # C+D
+            0: {'rate': 0, 'count': 0, 'max': 0}, # A (SCA)
+            1: {'rate': 0, 'count': 0, 'max': 0}, # B (SCA)
+            2: {'rate': 0, 'count': 0, 'max': 0}, # A & B
         }
-
+    
     ####################################
     # Create time difference histogram #
     ####################################
@@ -844,7 +801,7 @@ class App(QtGui.QMainWindow):
 
         self.histogramplot = self.canvas.addPlot(
             colspan = 2,
-            title = "Full pulse time interval histogram between detectors A & B",
+            title = "SCA square pulse time interval histogram between detectors A & B",
             labels = {
                 'left': "Total counts (%s)" % 0,
                 'bottom': "Time interval (ns)"
@@ -864,7 +821,7 @@ class App(QtGui.QMainWindow):
         self.histogramplot.clear()
 
         # Initial values for histogram
-        y, x = np.histogram(self.histogram_data, bins = np.linspace(0, self.time_window, self.bin_count))
+        y, x = np.histogram(self.histogram_data, bins = np.linspace(-self.time_window, self.time_window, self.bin_count))
         self.histogramplotp = self.histogramplot.plot(x, y, stepMode = True, fillLevel = 0, brush = (0, 0, 255, 150))
 
 
@@ -875,21 +832,21 @@ class App(QtGui.QMainWindow):
     # 1. Measure the background rate
     # 2. Make the true coincidence test
     # 3. Measure the unquantum effect
-    #
+    # 
     #####################################
     def init_measurements(self):
         self.init_detectors()
         # Background rate (R_b)
         # Measurement 1 - retrieves coincident clicks from the detectors
-        # without radionuclei. Background coincidents are retrieved in the same
+        # without radionuclei. Background coincidents are retrieved in the same 
         # time window than the measurement 3.
         # Background rate will be used substracted from the experiment rate.
         self.background_rate = 0
 
         # Chance rate (R_c = R_1 * R_2 * T_w)
         # Change rate is calculated by multiplying detector a and b rates with the time window.
-        # This is done with the set_change_rate method.
-        self.change_rate = 0
+        # This is done with the set_chance_rate method.
+        self.chance_rate = 0
 
         # Experiment rate (R_e = C_t ÷ T_t)
         # Total coincident clicks divided by time difference is done with the
@@ -932,7 +889,7 @@ class App(QtGui.QMainWindow):
 
         # Stop collecting data, wait for new start.
         self.stop()
-
+        
         # Start data collection timer. It will be running for the experiments
         # even the data file saver has not been started.
         self.collect_start_time = tm()
@@ -968,9 +925,9 @@ class App(QtGui.QMainWindow):
         # Independent full pulse rate from the detector b
         self.total_singles_rate_detector_b = 0
 
-    # Measurement 2 - Sandwich (true coincidence) test is done by using two
-    # detectors each side of the radinuclei. Only single gammas should be sent
-    # by the isotope so that there are no coincident clicks in detectors except
+    # Measurement 2 - Sandwich (true coincidence) test is done by using two 
+    # detectors each side of the radinuclei. Only single gammas should be sent 
+    # by the isotope so that there are no coincident clicks in detectors except 
     # those that are caused randomly by the background radiation.
     def true_coincidence_test_measured(self):
         return False
@@ -1026,17 +983,17 @@ class App(QtGui.QMainWindow):
     # Measurement data is polled from the results window every .5 seconds.
     def update_results(self):
         self.results_table[self.measurement_name] = map(str, [
-            self.time_window,
-            round(self.background_rate, 1), # convert to seconds?
+            self.time_window * 2,
+            round(self.background_rate, 6), # convert to seconds?
             self.total_coincident_clicks_detectors,
             self.total_single_clicks_detector_a,
             self.total_single_clicks_detector_b,
             round(self.total_singles_rate_detector_a, 1), # convert to seconds?
             round(self.total_singles_rate_detector_b, 1), # convert to seconds?
             round(self.total_experiment_time, 1),
-            round(self.change_rate, 1), # convert to seconds?
-            round(self.experiment_rate, 1), # convert to seconds?
-            round(self.corrected_experiment_rate, 1), # convert to seconds?
+            round(self.chance_rate, 6), # convert to seconds?
+            round(self.experiment_rate, 6), # convert to seconds?
+            round(self.corrected_experiment_rate, 6), # convert to seconds?
             round(self.unquantum_effect, 1)
         ].copy())
 
@@ -1057,7 +1014,7 @@ class App(QtGui.QMainWindow):
             'pause': True,
             'sleep': (.1, .1),
             'playback_file': self.playback_file,
-            'low_limits': self.spectrum_low_limits,
+            'spectrum_low_limits': self.spectrum_low_limits,
             # Picoscope settings
             'picoscope': {}
         }
@@ -1066,12 +1023,12 @@ class App(QtGui.QMainWindow):
 
         print('open_playback_file')
 
-
+    
     # RESULTS MENU
 
     def results(self):
         if not self.table:
-            self.table = ResultsTable(self, 12, 4, self)
+            self.table = ResultsTable(self, 12, 3, self)
             self.table.setWindowFlags(self.table.windowFlags() | QtCore.Qt.Window)
         self.table.refresh = True
         self.table.show()
@@ -1093,8 +1050,8 @@ class App(QtGui.QMainWindow):
             self.setting.setWindowFlags(self.setting.windowFlags() | QtCore.Qt.Window)
         self.setting.show()
 
-    # Total experiment time must be set before calling single rates methods and
-    # background rate. Total coincident clicks must be set before calling background
+    # Total experiment time must be set before calling single rates methods and 
+    # background rate. Total coincident clicks must be set before calling background 
     # rate and experiment rate
     def set_background_rate(self):
         self.background_rate = self.total_coincident_clicks_detectors / self.total_experiment_time
@@ -1105,16 +1062,17 @@ class App(QtGui.QMainWindow):
         self.total_singles_rate_detector_a = self.total_single_clicks_detector_a / self.total_experiment_time
 
     def set_singles_rate_detector_b(self):
-        self.total_singles_rate_detector_b = self.total_single_clicks_detector_a / self.total_experiment_time
+        self.total_singles_rate_detector_b = self.total_single_clicks_detector_b / self.total_experiment_time
 
-    # Change rate and experiment rates are used both the true coincidence test and
+    # Change rate and experiment rates are used both the true coincidence test and 
     # the unquantum measurement
-    def set_change_rate(self):
-        self.change_rate = self.total_singles_rate_detector_a * self.total_singles_rate_detector_b * self.time_window
-        return self.change_rate
+    def set_chance_rate(self):
+        # * 2 for two nanoseconds
+        self.chance_rate = self.total_singles_rate_detector_a * self.total_singles_rate_detector_b * ((self.time_window * 2) / 10**9)
+        return self.chance_rate
 
     def set_experiment_rate(self):
-        self.set_change_rate()
+        self.set_chance_rate()
         self.experiment_rate = self.total_coincident_clicks_detectors / self.total_experiment_time
         return self.experiment_rate
 
@@ -1126,7 +1084,7 @@ class App(QtGui.QMainWindow):
     # Unquantum effect measurement is used solely by the measurement 3
     def set_unquantum_effect(self):
         self.set_corrected_experiment_rate()
-        self.unquantum_effect = 0 if self.change_rate == 0 else (self.corrected_experiment_rate / self.change_rate)
+        self.unquantum_effect = 0 if self.chance_rate == 0 else (self.corrected_experiment_rate / self.chance_rate)
         return self.unquantum_effect
 
     def set_multiprocessing_arguments(self, arguments):
@@ -1169,7 +1127,7 @@ class App(QtGui.QMainWindow):
             'pause': True,
             'sleep': (.1, .1),
             'playback_file': self.playback_file,
-            'low_limits': self.spectrum_low_limits,
+            'spectrum_low_limits': self.spectrum_low_limits,
             # Picoscope settings
             'picoscope': picoscope
         }
@@ -1183,7 +1141,7 @@ class App(QtGui.QMainWindow):
             'pause': False,
             'sleep': (.1, .1),
             'playback_file': self.playback_file,
-            'low_limits': self.spectrum_low_limits,
+            'spectrum_low_limits': self.spectrum_low_limits,
             # Picoscope settings
             'picoscope': picoscope
         }
@@ -1290,7 +1248,7 @@ class App(QtGui.QMainWindow):
                 self.total_singles_rate_detector_a, # convert to seconds?
                 self.total_singles_rate_detector_b, # convert to seconds?
                 self.total_experiment_time,
-                self.change_rate, # convert to seconds?
+                self.chance_rate, # convert to seconds?
                 self.experiment_rate, # convert to seconds?
                 self.corrected_experiment_rate, # convert to seconds?
                 self.unquantum_effect
@@ -1307,7 +1265,7 @@ class App(QtGui.QMainWindow):
             'total_singles_rate_detector_a',
             'total_singles_rate_detector_b',
             'total_experiment_time',
-            'change_rate',
+            'chance_rate',
             'experiment_rate',
             'corrected_experiment_rate',
             'unquantum_effect'
@@ -1327,7 +1285,7 @@ class App(QtGui.QMainWindow):
             'pause': True,
             'sleep': (1, 1),
             'playback_file': '',
-            'low_limits': (),
+            'spectrum_low_limits': (),
             # Picoscope settings
             'picoscope': {}
         }
@@ -1348,81 +1306,104 @@ class App(QtGui.QMainWindow):
             # Signal spectrum histogram event and GUI update.
             if self.signal_spectrum_acquire_event.is_set():
 
-                data = self.signal_spectrum_acquire_value["value"]
-
+                data, triggers = self.signal_spectrum_acquire_value["value"]
+                
                 #self.signals_data = [
                 #    list(map(lambda x: x if x > self.spectrum_low_limits[i] else 0, (lambda x: x - x.mean())(np.array(d)))) for i, d in enumerate(data)
                 #]
 
-                if max(data[0]) > 2048 or max(data[1]) > 2048:
-
-                    self.signals_data = list(
-                        map(
-                            lambda x:
-                                list(
-                                    map(
-                                        lambda x: x if abs(x) > 2048 else 0,
-                                        x - x.mean()
-                                    )
-                                ),
-                            np.array(data)
-                        )
+                #threshold = 2048
+            
+                """
+                self.signals_data = list(
+                    map(
+                        lambda x:
+                            list(
+                                map(
+                                    lambda x: x if abs(x) > threshold/4 else 0,
+                                    x - x.mean()
+                                )
+                            ),
+                        np.array(data)
                     )
+                )
+                """
 
+                if self.collect_data:
+                    for channel, value in enumerate(data):
+                        self._save_channel_spectrums_data([str(channel), ','.join(map(str, value))])
+
+                # Which one of the SCA channels were triggered?
+                if triggers[0] > 0:
+
+                    self.signals_data[0] = data[0]
+                    self.signals_data[2] = data[2]
+
+                    voltage_range = VOLTAGE_RANGES[self.settings_acquire_value['value']['picoscope']['voltage_range'][2]]
+
+                    self.spectrum_data.appendleft(voltage_range * max(data[2]) / self.spectrum_time_window)
+                    y, x = np.histogram(self.spectrum_data, bins = np.linspace(0, voltage_range, self.bin_count))
+                    self.spectrumplotp.setData(x, y)
+                    self.spectrumplot.setLabel('left', "Counts (%s)" % len(self.spectrum_data))
+            
+                if triggers[1] > 0:
+
+                    self.signals_data[1] = data[1]
+                    self.signals_data[3] = data[3]
+
+                    voltage_range = VOLTAGE_RANGES[self.settings_acquire_value['value']['picoscope']['voltage_range'][3]]
+
+                    self.spectrum2_data.appendleft(voltage_range * max(data[3]) / self.spectrum_time_window)
+                    y, x = np.histogram(self.spectrum2_data, bins = np.linspace(0, voltage_range, self.bin_count))
+                    self.spectrum2plotp.setData(x, y)
+                    self.spectrum2plot.setLabel('left', "Counts (%s)" % len(self.spectrum2_data))
+
+                if triggers[0] > 0 or triggers[1] > 0:
                     if self.signal and self.signal.refresh:
                         self.signal.update()
 
+                time_differences_n = len(triggers[2])
+                if time_differences_n > 0:
                     if self.collect_data:
-                        for channel, value in enumerate(data):
-                            self._save_channel_spectrums_data([str(channel), ','.join(map(str, value))])
+                        self._save_time_histogram_data(map(str, triggers[2]))
 
-                    np_data = np.array(data)
-
-                    self.spectrum_data.extendleft(filter_spectrum(baseline_correct(np_data[0]), 'spectrum1_counter', self.spectrum_low_limits[2], self))
-                    y, x = np.histogram(self.spectrum_data, bins = np.linspace(0, self.spectrum_time_window, self.bin_count))
-                    self.spectrumplotp.setData(x, y)
-                    self.spectrumplot.setLabel('left', "Counts (%s)" % self.spectrum1_counter)
-
-                    self.spectrum2_data.extendleft(filter_spectrum(baseline_correct(np_data[1]), 'spectrum2_counter', self.spectrum_low_limits[3], self))
-                    y, x = np.histogram(self.spectrum2_data, bins = np.linspace(0, self.spectrum_time_window, self.bin_count))
-                    self.spectrum2plotp.setData(x, y)
-                    self.spectrum2plot.setLabel('left', "Counts (%s)" % self.spectrum2_counter)
+                    self.histogram_data.extend(triggers[2])
+                    self.histogram_data_count += time_differences_n
+                    y, x = np.histogram(self.histogram_data, bins = np.linspace(-self.time_window, self.time_window, self.bin_count))
+                    self.histogramplotp.setData(x, y)
+                    self.histogramplot.setLabel('left', "Counts (%s)" % self.histogram_data_count)
 
                 self.signal_spectrum_acquire_event.clear()
 
             # Time difference histogram event and GUI update.
-            if self.time_difference_acquire_event.is_set():
+            # if self.time_difference_acquire_event.is_set():
 
-                data = self.time_difference_acquire_value["value"]
+            #     data = self.time_difference_acquire_value["value"]
 
-                if self.collect_data:
-                    self._save_time_histogram_data(map(str, data))
+            #     if self.collect_data:
+            #         self._save_time_histogram_data(map(str, data))
 
-                self.histogram_data.extend(data)
-                self.histogram_data_count += len(data)
-                y, x = np.histogram(self.histogram_data, bins = np.linspace(0, self.time_window, self.bin_count))
-                self.histogramplotp.setData(x, y)
-                self.histogramplot.setLabel('left', "Counts (%s)" % self.histogram_data_count)
-                self.time_difference_acquire_event.clear()
-
-            # Line graph event update.
-            if self.channels_pulse_height_acquire_event.is_set():
-                self.channels_pulse_height_value_data.append(self.channels_pulse_height_acquire_value['value'])
-                self.channels_pulse_height_acquire_event.clear()
+            #     self.histogram_data.extend(data)
+            #     self.histogram_data_count += len(data)
+            #     y, x = np.histogram(self.histogram_data, bins = np.linspace(-self.time_window, self.time_window, self.bin_count))
+            #     self.histogramplotp.setData(x, y)
+            #     self.histogramplot.setLabel('left', "Counts (%s)" % self.histogram_data_count)
+            #     self.time_difference_acquire_event.clear()
 
             # Signal rate meter graph event and GUI update.
             if self.channels_signal_rate_acquire_event.is_set():
-
+                
                 channels_signal_rate_value_latest = self.channels_signal_rate_acquire_value['value']
+
+                self.channels_pulse_height_value_data.append(channels_signal_rate_value_latest)
 
                 if self.collect_data or any((self.start_measurement1, self.start_measurement2, self.start_measurement3)):
 
                     self.total_experiment_time = tm() - self.collect_start_time
 
-                    self.total_single_clicks_detector_a += channels_signal_rate_value_latest[2]
-                    self.total_single_clicks_detector_b += channels_signal_rate_value_latest[3]
-
-                    self.total_coincident_clicks_detectors += channels_signal_rate_value_latest[4]
+                    self.total_single_clicks_detector_a += channels_signal_rate_value_latest[0]
+                    self.total_single_clicks_detector_b += channels_signal_rate_value_latest[1]
+                    self.total_coincident_clicks_detectors += channels_signal_rate_value_latest[2]
 
                     self.set_singles_rate_detector_a()
                     self.set_singles_rate_detector_b()
@@ -1437,9 +1418,6 @@ class App(QtGui.QMainWindow):
                 elif self.start_measurement3:
                     self.set_unquantum_effect()
 
-                average_rates = []
-                max_rates = []
-
                 # update average rate bar graph item with the latest rate indicator line
                 # and the max rate line
                 for channel, rate in enumerate(channels_signal_rate_value_latest):
@@ -1449,88 +1427,68 @@ class App(QtGui.QMainWindow):
                                                     (channel_rate_data['count'] + 1)
                         channel_rate_data['count'] += 1
 
-                        if rate > channel_rate_data['max']:
-                            channel_rate_data['max'] = rate
+                        #if rate > channel_rate_data['max']:
+                        #    channel_rate_data['max'] = rate
 
                         if self.collect_data:
                             self._save_pulse_rate_data(map(str, [channel, rate, channel_rate_data['rate']]))
 
-                        average_rates.append(channel_rate_data['rate'])
-                        max_rates.append(channel_rate_data['max'])
-
-                self.rate_bar_graph.setOpts(height = average_rates)
-
-                #print(channels_signal_rate_value_latest)
-
-                # Setting data to the signal rate graph item.
-                self.rate_bar_graph_nodes.setData(
-                    pos = [[i+1, x] for i, x in enumerate(channels_signal_rate_value_latest)],
-                    size=0.75, pxMode=False, symbol='+', symbolSize=1, symbolPen=self.symbolBrush
-                )
-
-                # Setting data to the signal max rate graph item.
-                self.max_rate_bar_graph_nodes.setData(
-                    pos = [[i+1, x] for i, x in enumerate(max_rates)],
-                    size=0.75, pxMode=False, symbol='+', symbolSize=10, symbolPen=self.symbolBrush
-                )
-
+                        self.average_rates[channel] += channel_rate_data['rate']
+                        #self.max_rates[channel] = channel_rate_data['max'] if channel_rate_data['max'] > self.max_rates[channel] else self.max_rates[channel]
+         
                 # clear event and wait for the next one from the worker
                 self.channels_signal_rate_acquire_event.clear()
 
-            #self.data = np.sin(self.X / 3. + self.counter / 9.) * np.cos(self.Y / 3. + self.counter / 9.)
-            #self.img.setImage(self.data)
-
-            #self.ydata = np.sin(self.x / 3. + self.counter / 9.)
-            #self.h2.setData(self.y in self.data)
-
             # Line graph GUI update - collect data for a second and then come here inside if clause
             now = tm()
-            if now - self.lasttime > self.interval:
 
-                #low, high = self.discriminator_values
+            if now - self.lasttime > self.interval:
 
                 if self.collect_data:
                     self.update_results()
                     self.save_experiment_data()
 
-                # channels 1-4 init data
-                data = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
+                # Init plot data.
+                data = {0: 0, 1: 0, 2: 0}
 
-                # add all collected data from channels_pulse_height_value_data
+                # Add all collected data from channels_pulse_height_value_data.
                 for channels_data in self.channels_pulse_height_value_data[:]:
                     for channel, value in enumerate(channels_data):
                         data[channel] += value
 
-                # plot collected values as one
-                for channel in range(5):
+                # Remove last value and add new to the start of the stack.
+                for channel in range(3):
                     self.plot_values[channel].pop(0)
                     self.plot_values[channel].append(data[channel])
                     if self.collect_data:
                         self._save_time_graph_data(map(str, [now - self.collect_start_time, channel, data[channel]]))
 
-                # reset values
+                # Reset values.
                 self.channels_pulse_height_value_data = []
+                self.lasttime = now;
 
-                self.lasttime = tm();
-
-                # update plots
+                # Forward pointer in the line graph.
                 self.pointer += 1
 
-                # Line plot 1 a, b, c, d
-                self.lineplot1a.setPos(self.pointer, 0)
-                self.lineplot1a.setData(self.plot_values[0])
+                # A (SCA C).
+                self.lineplota.setPos(self.pointer, 0)
+                self.lineplota.setData(self.plot_values[0])
+                # B (SCA D).
+                self.lineplotb.setPos(self.pointer, 0)
+                self.lineplotb.setData(self.plot_values[1])
+                # A & B coincidence.
+                self.lineplotc.setPos(self.pointer, 0)
+                self.lineplotc.setData(self.plot_values[2])
 
-                self.lineplot1b.setPos(self.pointer, 0)
-                self.lineplot1b.setData(self.plot_values[1])
+                self.rate_bar_graph.setOpts(height = self.average_rates)
 
-                self.lineplot1c.setPos(self.pointer, 0)
-                self.lineplot1c.setData(self.plot_values[2])
+                self.average_rates = [0, 0, 0]
 
-                self.lineplot1d.setPos(self.pointer, 0)
-                self.lineplot1d.setData(self.plot_values[3])
-
-                self.lineplot1e.setPos(self.pointer, 0)
-                self.lineplot1e.setData(self.plot_values[4])
+                # Setting data to the signal max rate graph item.
+                # self.max_rate_bar_graph_nodes.setData(
+                #     pos = [[i+1, x] for i, x in enumerate(self.max_rates)],
+                #     size=self.rate_bar_size, pxMode=False, symbol='+', symbolSize=10, symbolPen=self.symbolBrush, symbolBrush=self.symbolBrush
+                # )
 
                 # window status bar
                 self.set_window_status_bar()

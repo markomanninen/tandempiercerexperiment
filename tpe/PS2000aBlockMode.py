@@ -8,8 +8,9 @@
 
 from ctypes import c_int16, c_int32, c_float, byref, POINTER
 from picosdk.ps2000a import ps2000a as ps, \
-     PS2000A_TRIGGER_CONDITIONS, PS2000A_TRIGGER_CHANNEL_PROPERTIES, \
-     PS2000A_TRIGGER_CHANNEL_PROPERTIES, PS2000A_PWQ_CONDITIONS
+     PS2000A_TRIGGER_CONDITIONS, \
+     PS2000A_TRIGGER_CHANNEL_PROPERTIES, \
+     PS2000A_PWQ_CONDITIONS
 from picosdk.functions import adc2mV
 
 # Create chandle and status ready for use
@@ -126,8 +127,11 @@ def set_channels(voltage_range = ('10V', '10V', '10V', '10V'),
         )
 
 def set_buffers(trigger_settings, timebase_settings, advanced_trigger_settings):
-    #set_trigger(**trigger_settings)
-    set_advanced_trigger(**advanced_trigger_settings)
+    
+    if trigger_settings['enabled'] == 1:
+        set_trigger(**trigger_settings)
+    elif advanced_trigger_settings['enabled'] == 1:
+        set_advanced_trigger(**advanced_trigger_settings)
     set_timebase(**timebase_settings)
     init_capture()
 
@@ -138,7 +142,7 @@ def set_trigger(enabled = 1, channel = 0, threshold = 1024, direction = 2, delay
     # Direction = PS2000A_RISING = 2
     ps.ps2000aSetSimpleTrigger(chandle, enabled, channel, threshold, direction, delay, auto_trigger)
 
-def set_advanced_trigger(upper_threshold = 20, upper_hysteresis = 2.5, auto_trigger_ms = 1000):
+def set_advanced_trigger(enabled = 1, channels = ('A', 'B'), upper_threshold = 20, upper_hysteresis = 2.5, auto_trigger_ms = 1000):
     global chandle
 
     """
@@ -151,27 +155,42 @@ def set_advanced_trigger(upper_threshold = 20, upper_hysteresis = 2.5, auto_trig
     ("pulseWidthQualifier", c_int32),
     ("digital", c_int32)
     """
-    # Channel C ...
-    Condition = PS2000A_TRIGGER_CONDITIONS * 2
+
+    trigger_conditions_n = 2
+
+    Condition = PS2000A_TRIGGER_CONDITIONS * trigger_conditions_n
+
     trigger_conditions = Condition(
-        PS2000A_TRIGGER_CONDITIONS(0, 0, 1, 0, 0, 0, 0, 0),
-        PS2000A_TRIGGER_CONDITIONS(0, 0, 0, 1, 0, 0, 0, 0)
+        PS2000A_TRIGGER_CONDITIONS(
+            (1 if channels[0] == 'A' else 0),
+            (1 if channels[0] == 'B' else 0), 
+            (1 if channels[0] == 'C' else 0),
+            (1 if channels[0] == 'D' else 0), 0, 0, 0, 0),
+        PS2000A_TRIGGER_CONDITIONS(
+            (1 if channels[1] == 'A' else 0),
+            (1 if channels[1] == 'B' else 0), 
+            (1 if channels[1] == 'C' else 0),
+            (1 if channels[1] == 'D' else 0), 0, 0, 0, 0)
     )
+
     """
     int16_t                     handle,
     PS2000A_TRIGGER_CONDITIONS *conditions,
     int16_t                     nConditions
     """
     # If multiple conditions are given, they are regarded as AND.
-    ps.ps2000aSetTriggerChannelConditions(chandle, byref(trigger_conditions), 2)
+    ps.ps2000aSetTriggerChannelConditions(chandle, byref(trigger_conditions), trigger_conditions_n)
     # But if conditions function is called multiple times, they are regarded as OR.
-    # ... or channel D.
-    #ps.ps2000aSetTriggerChannelConditions(chandle, byref(triggerConditions2), 2)
+    # ... and channel n.
+    #ps.ps2000aSetTriggerChannelConditions(chandle, byref(triggerConditionsN), number_of_conditions)
 
     # Pulse height trigger (mV to ACD)
     upper_threshold_bits = int(2**16 * upper_threshold / 100)
     hysteresis = int(upper_hysteresis / 100 * upper_threshold_bits)
     threshold_mode = ps.PS2000A_THRESHOLD_MODE["PS2000A_LEVEL"]
+
+    # Set advanced trigger channel properties.
+    
     """
 
     ps2000a_above = 0
@@ -201,21 +220,24 @@ def set_advanced_trigger(upper_threshold = 20, upper_hysteresis = 2.5, auto_trig
     ("channel", c_int32),
     ("thresholdMode", c_int32)]
     """
-    Property = PS2000A_TRIGGER_CHANNEL_PROPERTIES * 2
+
+    trigger_properties_n = 2
+
+    Property = PS2000A_TRIGGER_CHANNEL_PROPERTIES * trigger_properties_n
 
     trigger_properties = Property(
         PS2000A_TRIGGER_CHANNEL_PROPERTIES(
-            upper_threshold_bits, hysteresis, 0, 0, ps.PS2000A_CHANNEL["PS2000A_CHANNEL_C"], threshold_mode
+            upper_threshold_bits, hysteresis, 0, 0, ps.PS2000A_CHANNEL["PS2000A_CHANNEL_%s" % channels[0]], threshold_mode
         ),
         PS2000A_TRIGGER_CHANNEL_PROPERTIES(
-            upper_threshold_bits, hysteresis, 0, 0, ps.PS2000A_CHANNEL["PS2000A_CHANNEL_D"], threshold_mode
+            upper_threshold_bits, hysteresis, 0, 0, ps.PS2000A_CHANNEL["PS2000A_CHANNEL_%s" % channels[1]], threshold_mode
         )
     )
+
     #triggerProperties1 = PS2000A_TRIGGER_CHANNEL_PROPERTIES(
     #    upper_threshold_bits, hysteresis, 0, 0, ps.PS2000A_CHANNEL["PS2000A_CHANNEL_C"], threshold_mode
     #)
 
-    # Set advanced trigger channel properties
     """
         int16_t                             handle,
         PS2000A_TRIGGER_CHANNEL_PROPERTIES *channelProperties,
@@ -224,11 +246,11 @@ def set_advanced_trigger(upper_threshold = 20, upper_hysteresis = 2.5, auto_trig
         int32_t                             autoTriggerMilliseconds
     """
     #ps.ps2000aSetTriggerChannelProperties(chandle, byref(triggerProperties1), 1, 0, 1000)
-    ps.ps2000aSetTriggerChannelProperties(chandle, byref(trigger_properties), 2, 0, auto_trigger_ms)
+    ps.ps2000aSetTriggerChannelProperties(chandle, byref(trigger_properties), trigger_properties_n, 0, auto_trigger_ms)
 
-    # Set advanced trigger channel directions
-    triggerDirection1 = ps.PS2000A_THRESHOLD_DIRECTION["PS2000A_RISING"]
-    triggerDirection2 = ps.PS2000A_THRESHOLD_DIRECTION["PS2000A_RISING"]
+    # Set advanced trigger channel direction.
+    triggerDirection = ps.PS2000A_THRESHOLD_DIRECTION["PS2000A_RISING"]
+
     """
     int16_t                      handle,
         PS2000A_THRESHOLD_DIRECTION  channelA,
@@ -238,8 +260,18 @@ def set_advanced_trigger(upper_threshold = 20, upper_hysteresis = 2.5, auto_trig
         PS2000A_THRESHOLD_DIRECTION  ext,
         PS2000A_THRESHOLD_DIRECTION  aux
     """
-    ps.ps2000aSetTriggerChannelDirections(chandle, 0, 0, triggerDirection1, 0, 0, 0)
-    ps.ps2000aSetTriggerChannelDirections(chandle, 0, 0, 0, triggerDirection2, 0, 0)
+
+    ps.ps2000aSetTriggerChannelDirections(chandle, 
+        (triggerDirection if channels[0] == 'A' else 0),
+        (triggerDirection if channels[0] == 'B' else 0), 
+        (triggerDirection if channels[0] == 'C' else 0),
+        (triggerDirection if channels[0] == 'D' else 0), 0, 0)
+    ps.ps2000aSetTriggerChannelDirections(chandle, 
+        (triggerDirection if channels[1] == 'A' else 0), 
+        (triggerDirection if channels[1] == 'B' else 0), 
+        (triggerDirection if channels[1] == 'C' else 0), 
+        (triggerDirection if channels[1] == 'D' else 0), 0, 0)
+
     #ps.ps2000aSetTriggerChannelDirections(chandle, 0, 0, triggerDirection1, triggerDirection2, 0, 0)
 
     # Set pulse width qualifier with ps2000aSetTriggerDelay
@@ -251,56 +283,6 @@ def set_advanced_trigger(upper_threshold = 20, upper_hysteresis = 2.5, auto_trig
     PW_upperlim = ctypes.c_uint32(0)
     ps.ps2000aSetPulseWidthQualifier(chandle, byref(pwqConditions), 1, pwqDirections, PW_lowerlim, PW_upperlim, pwqProperties)
     """
-
-def set_trigger_C_OR_D(threshold=0., direction='RISING', is_enabled=True):
-    global chandle
-    """Set the oscilloscope to trigger on A OR B (logical OR).
-    :param threshold: the trigger threshold (in V)
-    :param direction: the direction in which the signal must move to cause
-        a trigger
-    :param is_enabled: (boolean) enable or disable the trigger
-    The direction parameter can take values of 'ABOVE', 'BELOW', 'RISING',
-    'FALLING' or 'RISING_OR_FALLING'.
-    """
-
-    channel1 = ps.PS2000A_CHANNEL["PS2000A_CHANNEL_C"]
-    channel2 = ps.PS2000A_CHANNEL["PS2000A_CHANNEL_D"]
-    dire = _get_trigger_direction_from_name(direction)
-    mode = ps.PS2000A_THRESHOLD_MODE["PS2000A_LEVEL"]
-
-    Direction2 = ps.PS2000A_TRESHOLD_DIRECTION * 2
-
-    trigDirection = Direction2(
-        ps.PS2000A_TRESHOLD_DIRECTION(channel1, dire, mode),
-        ps.PS2000A_TRESHOLD_DIRECTION(channel2, dire, mode)
-    )
-
-    threshold1 = threshold
-    threshold2 = threshold
-    Property2 = ps.PS2000A_TRIGGER_CHANNEL_PROPERTIES_V2 * 2
-    trigProperties = Property2(
-        ps.PS2000A_TRIGGER_CHANNEL_PROPERTIES_V2(threshold1, 0, 0, 0, channel1),
-        ps.PS2000A_TRIGGER_CHANNEL_PROPERTIES_V2(threshold2, 0, 0, 0, channel2)
-    )
-
-    state_true      = ps.PS2000A_TRIGGER_STATE["PS2000A_CONDITION_TRUE"]
-    trigCondition1  = ps.PS2000A_CONDITION(channel1, state_true)
-    trigCondition2  = ps.PS2000A_CONDITION(channel2, state_true)
-
-    # Multiple directions/properties: logical OR
-    ps.ps2000aSetTriggerChannelDirectionsV2(chandle, byref(trigDirection), 2)
-    ps.ps2000aSetTriggerChannelPropertiesV2(chandle, byref(trigProperties), 2, 0)
-
-    clear = 1 # 0b00000001
-    add = 2 # 0b00000010
-
-    # Multiple conditions: Logical AND; Multiple calls: logical OR
-    if is_enabled:
-        ps.ps2000aSetTriggerChannelConditionsV2(chandle, byref(trigCondition1), 1, (clear+add))
-        ps.ps2000aSetTriggerChannelConditionsV2(chandle, byref(trigCondition2), 1, add)
-        ps.ps2000aSetAutoTriggerMicroSeconds(chandle, 0)
-    else:
-        ps.ps2000aSetTriggerChannelConditionsV2(chandle, byref(trigCondition1), 0, clear)
 
 def _get_trigger_direction_from_name(direction_name):
     if direction_name in ['ABOVE', 'BELOW', 'RISING', 'FALLING', 'RISING_OR_FALLING']:
@@ -408,6 +390,16 @@ def get_buffers_adc2mv():
             maxADC
         )[:]
     #time = np.linspace(0, (cTotalSamples.value) * timeIntervalns.value, cTotalSamples.value)
+
+"""
+def adctomv(buffer):
+    global chandle, maxADC
+    ps.ps2000aMaximumValue(chandle, byref(maxADC))
+    return (
+        adc2mV(buffer[2],VOLTAGE_RANGES[channel_voltage_ranges[2]], maxADC)
+        adc2mV(buffer[3],VOLTAGE_RANGES[channel_voltage_ranges[3]], maxADC)
+    )
+"""
 
 def stop_picoscope():
     global chandle

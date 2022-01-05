@@ -39,56 +39,66 @@ def main():
 
     try:
 
-        # TODO use configuration file for start up application settings.
+        # TODO: use configuration file for start up application settings.
 
+        # Streaming mode settings.
         buffer_size = 500
         buffer_count = 4
         units = 'US'
+
+        # Voltage range for each 4 channels.
         voltage_range = ('10V', '10V', '10V', '10V')
 
+        # Block mode settings.
+        block_mode_timebase_settings = {
+            'timebase_n': 2,
+            'pre_trigger_samples': 500,
+            'post_trigger_samples': 500
+        }
+
+        # Set enabled 1, if you want to use simple one channel trigger.
         block_mode_trigger_settings = {
-            'enabled': 1,
-            'channel': 2, # 0=A, 1=B, 2=C, 3=D
+            'enabled': 0,
+            'channel': 0, # 0=A, 1=B, 2=C, 3=D
             'threshold': 1024*16, #adc value
             'direction': 2, # raising
             'delay': 0,
             'auto_trigger': 100
         }
 
-        block_mode_timebase_settings = {
-            'timebase_n': 8,
-            'pre_trigger_samples': 5000,
-            'post_trigger_samples': 5000
-        }
-
-        # Special trigger for channels C and D.
-        # Triggers if either channel has raising over given threshold,
+        # Special trigger for block mode.
+        # Triggers if either channel has a raising voltage over given threshold,
         # By hysteresis it is possible to wait for lowering edge under given
-        # percentage until next trigger is used.
+        # percentage until the next trigger is used.
+        # Set enabled 1, if you want to use this.
         advanced_trigger_settings = {
+            'enabled': 1,
+            'channels': ('A', 'B'),
             'upper_threshold': 20,
-            'upper_hysteresis': 2.5,
+            'upper_hysteresis': 2.5, # % can this be below baseline (-)?
             'auto_trigger_ms': 100
         }
+
+        time_window = (block_mode_timebase_settings['pre_trigger_samples'] + block_mode_timebase_settings['post_trigger_samples'])
 
         parser = argparse.ArgumentParser(
             description = 'Tandem Piercer Experiment similators, playback and picoscope data acquisition program.'
         )
-
+        
         parser.add_argument('--file', dest='playback_file',
                             help='Default playback file to run the application')
 
         parser.add_argument('--bins', dest='bin_count', default=128,
                             help='Bin count for histograms')
 
-        parser.add_argument('--time_window', dest='time_window', default=buffer_size*buffer_count,
-                            help='Time window for time difference histogram. Default 500 ns.')
+        parser.add_argument('--time_window', dest='time_window', default=time_window,
+                            help='Time window for the time difference histogram.')
 
-        parser.add_argument('--spectrum_range', dest='spectrum_range', default=35000,
-                            help='Voltage range for spectrum histogram. Default 35000adc.')
+        parser.add_argument('--spectrum_range', dest='spectrum_range', default=36000,
+                            help='Voltage range for the spectrum histograms. Default 32767 = 2^15.')
 
-        parser.add_argument('--spectrum_queue_size', dest='spectrum_queue_size', default=10000,
-                            help='Queue size for spectrum histogram. Default 10000.')
+        parser.add_argument('--spectrum_queue_size', dest='spectrum_queue_size', default=2500,
+                            help='Queue size for spectrum histogram. Default 2500.')
 
         parser.add_argument('--picoscope_mode', dest='picoscope_mode', default=None, action=PicoScopeModes,
                             help='Picoscope mode for importing the data acqution module. \
@@ -101,7 +111,7 @@ def main():
         args = parser.parse_args()
 
         verbose = args.verbose == 1
-
+        
         # Multiprocessing value manager.
         # Only values declared with Manager can be shared between processes.
         manager = Manager()
@@ -120,19 +130,18 @@ def main():
         # Picoscope on / off
         application_configuration["has_picoscope"] = args.picoscope_mode != None
         # Low value limits for channels 1-4.
-        application_configuration["spectrum_low_limits"] = (512, 512, 512, 512)
+        application_configuration["spectrum_low_limits"] = (2048, 2048, 1024, 1024)
+        #application_configuration["spectrum_low_limits"] = (2048, 2048, 512, 512)
         # Selected channels for spectrum histogram.
         # Possible options are: 1=A, 2=B, 3=C, 4=D, 5=E where
-        # the channel E is a combined rate channel from C and D.
+        # the channel E is a combined rate channel from A and B.
         application_configuration["spectrum_channels"] = ('A', 'B')
         # Verbose mode.
         application_configuration["verbose"] = verbose == 1
-
+        
         arguments = [
             # Share time difference dictionary between processes.
             'time_difference_acquire_',
-            # Share channel pulse height dictionary between processes.
-            'channels_pulse_height_acquire_',
             # Share channel signal rate dictionary between processes.
             'channels_signal_rate_acquire_',
             # Share signal spectrum dictionary between processes.
@@ -153,6 +162,8 @@ def main():
         application_configuration["playback_file"] = playback_file
 
         multiprocessing_arguments["main_process_id"] = os.getpid()
+
+        multiprocessing_arguments["time_window"] = application_configuration["time_window"]
 
         print('Main process started: %s' % multiprocessing_arguments["main_process_id"])
 
@@ -209,9 +220,11 @@ def main():
         # This makes possible the unopened sub processes to be opened.
         while True:
             sleep(.1)
+
     # Catch argument parser errors.
     except ValueError as e:
         print(e)
+
     # Main CTRL-C interruption error handler.
     except KeyboardInterrupt:
         # You can use also ctrl-c in console to exit graphical ui.
