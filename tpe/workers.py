@@ -22,15 +22,12 @@ np.random.seed(19680801)
 # Simulator worker for pulse rate meter, channel line graph,
 # time difference and detector spectrum histograms.
 def simulator_worker(arguments, verbose):
-    
+
     print("Simulator worker starting...")
 
     # Gather events and values to lessen dictionary loop ups in the while loop.
     settings_acquire_event = arguments['settings_acquire_event']
     settings_acquire_value = arguments['settings_acquire_value']
-
-    time_difference_acquire_event = arguments['time_difference_acquire_event']
-    time_difference_acquire_value = arguments['time_difference_acquire_value']
 
     channels_signal_rate_acquire_event = arguments['channels_signal_rate_acquire_event']
     channels_signal_rate_acquire_value = arguments['channels_signal_rate_acquire_value']
@@ -49,31 +46,27 @@ def simulator_worker(arguments, verbose):
 
                 # retrieve channel 3 and 4 data for the time difference histogram
 
-                # random value weighting normal distribution, gives values from -0.5, 0.5 
+                # random value weighting normal distribution, gives values from -0.5, 0.5
                 # * 25 + 100 to shift to 0 - 200
-                time_difference_acquire_value["value"] = [
-                    (np.random.normal(size=1)[0] * 25) + (arguments['time_window']/2)
-                ]
-                time_difference_acquire_event.set()
+                time_differences = [(np.random.normal(size=1)[0] * 25) + (arguments['time_window']/2)]
 
-                sigs = (random(0, 20),random(0, 15),random(0, 5))
+                buffers = ([random(0, 20000) for i in range(1000)],
+                           [random(0, 20000) for i in range(1000)],
+                           [random(0, 20000) for i in range(1000)],
+                           [random(0, 20000) for i in range(1000)])
 
-                # retrieve channel 1 and 2 data for the spectrum
-                signal_spectrum_acquire_value["value"] = (
-                    ([random(0, 20000) for i in range(1000)],
-                    [random(0, 20000) for i in range(1000)],
-                    [random(0, 20000) for i in range(1000)],
-                    [random(0, 20000) for i in range(1000)]),
-                    sigs
-                )
+                l1 = random(0, 20)
+                l2 = random(0, 20)
+                # Call signal rate event.
+                channels_signal_rate_acquire_value["value"] = (l1, l2, len(time_differences))
+                channels_signal_rate_acquire_event.set()
+                # Pass raw signal data without any correction and limits to the plotter and
+                # spectrum. Actually, the time difference part can also be moved to the GUI
+                # multi processing thread so that this part of the retrieving data from picoscope
+                # is as simple and streamlined as possible.
+                signal_spectrum_acquire_value["value"] = (buffers, (l1, l2, time_differences))
                 signal_spectrum_acquire_event.set()
 
-                # retrieve channel 1-4 data for the pulse rate meter
-                # TODO: channels 1-2 are not needed until there is a programmable
-                # trigger made to determine pulse rate
-                channels_signal_rate_acquire_value["value"] = sigs
-                channels_signal_rate_acquire_event.set()
-            
             # Pause, sub loop or main loop can be triggers in the application.
             # In those cases other new settings might be arriving too like
             # a new playback file etc.
@@ -87,12 +80,13 @@ def simulator_worker(arguments, verbose):
             sleep(uniform(*settings['sleep']))
 
     except Exception as e:
+        print(e)
         pass
 
     return settings
 
 def process_buffers(buffers, settings, time_window,
-                    time_difference_acquire_value, time_difference_acquire_event, 
+                    time_difference_acquire_value, time_difference_acquire_event,
                     signal_spectrum_acquire_value, signal_spectrum_acquire_event,
                     channels_signal_rate_acquire_value, channels_signal_rate_acquire_event):
 
@@ -123,7 +117,7 @@ def process_buffers(buffers, settings, time_window,
     channels_signal_rate_acquire_value["value"] = (l1, l2, len(time_differences))
     channels_signal_rate_acquire_event.set()
 
-    # Pass raw signal data without any correction and limits to the plotter and 
+    # Pass raw signal data without any correction and limits to the plotter and
     # spectrum. Actually, the time difference part can also be moved to the GUI
     # multi processing thread so that this part of the retrieving data from picoscope
     # is as simple and streamlined as possible.
@@ -160,15 +154,15 @@ def _playback_worker(playback_buffers, arguments, settings, verbose):
 
             if len(work_buffers) < 1:
                 print('reload playback buffers')
-                work_buffers = playback_buffers[:] 
-            
+                work_buffers = playback_buffers[:]
+
             # Retrieve stored playback buffers in the same order than they were saved.
             # TODO: By using rotating index, we could find out the line from the file and parse
             # it for more robust and scalable version of using playback files...
             buffers = work_buffers.pop(0)
 
             process_buffers(buffers, settings, arguments['time_window'],
-                time_difference_acquire_value, time_difference_acquire_event, 
+                time_difference_acquire_value, time_difference_acquire_event,
                 signal_spectrum_acquire_value, signal_spectrum_acquire_event,
                 channels_signal_rate_acquire_value, channels_signal_rate_acquire_event)
 
@@ -194,7 +188,7 @@ def playback_worker(arguments, playback_file, verbose, playback_fail = False):
 
     # Note, these are settings that MUST be given from the application!
     settings = settings_acquire_value['value']
-    
+
     while settings['main_loop']:
 
         if playback_fail:
@@ -205,11 +199,11 @@ def playback_worker(arguments, playback_file, verbose, playback_fail = False):
                 settings_acquire_event.clear()
                 playback_fail = False
 
-            # If there are no setting events coming from the application, 
+            # If there are no setting events coming from the application,
             # we just continue in the loop and wait.
 
         else:
-            # If DAQ has been paused, turn it on again. 
+            # If DAQ has been paused, turn it on again.
             if settings['pause']:
                 settings['pause'] = False
             # Also if sub loop has been paused, turn it on.
@@ -308,7 +302,7 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
             else:
                 print('Picoscope mode not supported. Halting the main loop.')
                 settings['main_loop'] = False
-                settings['sub_loop'] = False                
+                settings['sub_loop'] = False
 
             while settings['sub_loop']:
 
@@ -323,8 +317,8 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                     if False:
                         write_buffers(buffers, csv_data_file)
 
-                    process_buffers(buffers, settings, arguments['time_window'], 
-                        time_difference_acquire_value, time_difference_acquire_event, 
+                    process_buffers(buffers, settings, arguments['time_window'],
+                        time_difference_acquire_value, time_difference_acquire_event,
                         signal_spectrum_acquire_value, signal_spectrum_acquire_event,
                         channels_signal_rate_acquire_value, channels_signal_rate_acquire_event)
 
@@ -445,10 +439,10 @@ def load_buffers(file, buffers = [], b = [], first_line = True):
 
 # Start PyQT application
 def main_program(application_configuration, multiprocessing_arguments):
-    
+
     # Suppress traceback messages on application quit / ctrl-c in console.
     signal.signal(signal.SIGINT, lambda x, y: sys.exit(0))
-    
+
     app = QtGui.QApplication(sys.argv)
     # Init QT app with configuration.
     c = App(application_configuration, multiprocessing_arguments)
