@@ -127,20 +127,21 @@ def set_channels(voltage_range = ('10V', '10V', '10V', '10V'),
         )
 
 def set_buffers(trigger_settings, timebase_settings, advanced_trigger_settings):
-    
+
     if trigger_settings['enabled'] == 1:
         set_trigger(**trigger_settings)
     elif advanced_trigger_settings['enabled'] == 1:
         set_advanced_trigger(**advanced_trigger_settings)
-    set_timebase(**timebase_settings)
+    ret = set_timebase(**timebase_settings)
     init_capture()
+    return ret == 0
 
-def set_trigger(enabled = 1, channel = 0, threshold = 1024, direction = 2, delay = 0, auto_trigger = 1000):
+def set_trigger(enabled = 1, channel = 0, threshold = 1024, direction = 2, delay = 0, auto_trigger = 1000, alternate_channel = False):
     global chandle
     # Channel source, ps2000a_CHANNEL_A = 0
     # Threshold ADC counts
     # Direction = PS2000A_RISING = 2
-    ps.ps2000aSetSimpleTrigger(chandle, enabled, channel, threshold, direction, delay, auto_trigger)
+    return ps.ps2000aSetSimpleTrigger(chandle, enabled, channel, threshold, direction, delay, auto_trigger)
 
 def set_advanced_trigger(enabled = 1, channels = ('A', 'B'), upper_threshold = 20, upper_hysteresis = 2.5, auto_trigger_ms = 1000):
     global chandle
@@ -163,12 +164,12 @@ def set_advanced_trigger(enabled = 1, channels = ('A', 'B'), upper_threshold = 2
     trigger_conditions = Condition(
         PS2000A_TRIGGER_CONDITIONS(
             (1 if channels[0] == 'A' else 0),
-            (1 if channels[0] == 'B' else 0), 
+            (1 if channels[0] == 'B' else 0),
             (1 if channels[0] == 'C' else 0),
             (1 if channels[0] == 'D' else 0), 0, 0, 0, 0),
         PS2000A_TRIGGER_CONDITIONS(
             (1 if channels[1] == 'A' else 0),
-            (1 if channels[1] == 'B' else 0), 
+            (1 if channels[1] == 'B' else 0),
             (1 if channels[1] == 'C' else 0),
             (1 if channels[1] == 'D' else 0), 0, 0, 0, 0)
     )
@@ -190,7 +191,7 @@ def set_advanced_trigger(enabled = 1, channels = ('A', 'B'), upper_threshold = 2
     threshold_mode = ps.PS2000A_THRESHOLD_MODE["PS2000A_LEVEL"]
 
     # Set advanced trigger channel properties.
-    
+
     """
 
     ps2000a_above = 0
@@ -261,15 +262,15 @@ def set_advanced_trigger(enabled = 1, channels = ('A', 'B'), upper_threshold = 2
         PS2000A_THRESHOLD_DIRECTION  aux
     """
 
-    ps.ps2000aSetTriggerChannelDirections(chandle, 
+    ps.ps2000aSetTriggerChannelDirections(chandle,
         (triggerDirection if channels[0] == 'A' else 0),
-        (triggerDirection if channels[0] == 'B' else 0), 
+        (triggerDirection if channels[0] == 'B' else 0),
         (triggerDirection if channels[0] == 'C' else 0),
         (triggerDirection if channels[0] == 'D' else 0), 0, 0)
-    ps.ps2000aSetTriggerChannelDirections(chandle, 
-        (triggerDirection if channels[1] == 'A' else 0), 
-        (triggerDirection if channels[1] == 'B' else 0), 
-        (triggerDirection if channels[1] == 'C' else 0), 
+    ps.ps2000aSetTriggerChannelDirections(chandle,
+        (triggerDirection if channels[1] == 'A' else 0),
+        (triggerDirection if channels[1] == 'B' else 0),
+        (triggerDirection if channels[1] == 'C' else 0),
         (triggerDirection if channels[1] == 'D' else 0), 0, 0)
 
     #ps.ps2000aSetTriggerChannelDirections(chandle, 0, 0, triggerDirection1, triggerDirection2, 0, 0)
@@ -308,7 +309,7 @@ def set_timebase(timebase_n = 8, pre_trigger_samples = 2500, post_trigger_sample
     cTotalSamples = c_int32(totalSamples)
     returnedMaxSamples = c_int32()
 
-    ps.ps2000aGetTimebase2(
+    return ps.ps2000aGetTimebase2(
         chandle,
         timebase,
         totalSamples,

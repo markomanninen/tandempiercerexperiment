@@ -8,16 +8,84 @@ import sys, os, signal
 # Still some lines are output but better than without this fix.
 os.environ['FOR_DISABLE_CONSOLE_CTRL_HANDLER'] = '1'
 
-from scipy.signal import find_peaks
 from datetime import datetime
 from random import randint as random, uniform
 from pyqtgraph.Qt import QtGui
 from time import sleep
 from . gui import App
-from . functions import baseline_correct, filter_spectrum
+from . functions import baseline_correction_and_limit, raising_edges_for_raw_pulses, raising_edges_for_square_pulses
+
+# For nicer console output.
+import colorama
+colorama.init()
 
 # Make random number more random with the seed.
 np.random.seed(19680801)
+
+def process_buffers(buffers, settings, time_window, trigger_channel,
+                    signal_spectrum_acquire_value, signal_spectrum_acquire_event):
+
+    time_differences = [] #(np.random.normal(size=1)[0] * 25)
+
+    #bcl = list(map(lambda x: baseline_correction_and_limit(*x), zip(buffers, settings['spectrum_low_limits'], settings['spectrum_high_limits'])))
+    bcl = buffers
+    #a1 = raising_edges_for_raw_pulses(bcl[2])
+    #a2 = raising_edges_for_raw_pulses(bcl[3])
+    a1 = raising_edges_for_square_pulses(np.array(bcl[0]), 8192)
+    a2 = raising_edges_for_square_pulses(np.array(bcl[1]), 8192)
+
+    l1 = len(a1)
+    l2 = len(a2)
+
+    m1 = max(bcl[2])
+    m2 = max(bcl[3])
+
+    #if m1 < settings['spectrum_low_limits'][2] or m1 > settings['spectrum_high_limits'][2]:
+    #    l1 = 0
+    #if m2 < settings['spectrum_low_limits'][3] or m2 > settings['spectrum_high_limits'][3]:
+    #    l2 = 0
+
+    # If there is a square pulse on both SCA channels,
+    # calculate the time difference between the pulses.
+    if l1 > 0 and l2 > 0:
+        for i in a1:
+            for j in a2:
+                time_differences.append((i-j)) # 2ns!
+                if bcl[2][i] == 0 or bcl[3][j] == 0:
+                    pass
+                    # Debug possible empty raw data channels, even if they were triggered.
+                    # There might be occasional cases when in that certain index there is zero value
+                    # but then just before or after there is currant value.
+                    # print(
+                    #     'empty',
+                    #     'idx', (i, j, i-j),
+                    #     'val', (bcl[0][i], bcl[1][j], bcl[2][i], bcl[3][j]),
+                    #     'max', (max(bcl[0]), max(bcl[1]), max(bcl[2]), max(bcl[3]))
+                    # )
+
+    # Auto trigger setting forces trigger to release in Picoscope after certain amount of time,
+    # if there was no activity, and PS will try again.
+    # Thus, data may be empty and it will be unnecessary to send it to GUI.
+    if l1 > 0 or l2 > 0:
+        #print('valid','max', (max(bcl[0]), max(bcl[1]), max(bcl[2]), max(bcl[3])))
+
+        # Pass raw signal data without any correction and limits to the plotter and
+        # spectrum. Actually, the time difference part can also be moved to the GUI
+        # multi processing thread so that this part of the retrieving data from picoscope
+        # is as simple and streamlined as possible.
+        signal_spectrum_acquire_value["value"] = (
+            buffers,
+            (l1, l2, time_differences,
+                #[bcl[2][i] for i in a1],
+                #[bcl[3][i] for i in a2],
+                [m1] if l1 > 0 else [],
+                [m2] if l2 > 0 else [],
+                trigger_channel
+            )
+        )
+        signal_spectrum_acquire_event.set()
+
+    return (l1, l2)
 
 # Simulator worker for pulse rate meter, channel line graph,
 # time difference and detector spectrum histograms.
@@ -85,56 +153,11 @@ def simulator_worker(arguments, verbose):
 
     return settings
 
-def process_buffers(buffers, settings, time_window,
-                    time_difference_acquire_value, time_difference_acquire_event,
-                    signal_spectrum_acquire_value, signal_spectrum_acquire_event,
-                    channels_signal_rate_acquire_value, channels_signal_rate_acquire_event):
-
-    #time_difference_counts = 0
-    time_differences = [] #(np.random.normal(size=1)[0] * 25)
-
-    bcl = list(map(lambda x: baseline_correction_and_limit(*x), zip(np.array(buffers), settings['spectrum_low_limits'])))
-
-    a1 = raising_edges_for_raw_pulses(bcl[0])
-    a2 = raising_edges_for_raw_pulses(bcl[1])
-    l1 = len(a1)
-    l2 = len(a2)
-
-    # If there is a square pulse on both SCA channels,
-    # calculate the time difference between the pulses.
-    if l1 > 0 and l2 > 0:
-        for i in a1:
-            for j in a2:
-                time_differences.append(i-j)
-                #print((i, j, i-j, (max(bcl[2]), max(bcl[3]))))
-
-        # # If at least one coincidence was found, send data to multiprocessing event (GUI).
-        # if time_difference_counts > 0:
-        #     time_difference_acquire_value["value"] = time_differences
-        #     time_difference_acquire_event.set()
-
-    # Call signal rate event.
-    channels_signal_rate_acquire_value["value"] = (l1, l2, len(time_differences))
-    channels_signal_rate_acquire_event.set()
-
-    # Pass raw signal data without any correction and limits to the plotter and
-    # spectrum. Actually, the time difference part can also be moved to the GUI
-    # multi processing thread so that this part of the retrieving data from picoscope
-    # is as simple and streamlined as possible.
-    signal_spectrum_acquire_value["value"] = (buffers, (l1, l2, time_differences))
-    signal_spectrum_acquire_event.set()
-
 def _playback_worker(playback_buffers, arguments, settings, verbose):
 
     # Gather events and values to lessen dictionary loop ups in the while loop.
     settings_acquire_event = arguments['settings_acquire_event']
     settings_acquire_value = arguments['settings_acquire_value']
-
-    time_difference_acquire_event = arguments['time_difference_acquire_event']
-    time_difference_acquire_value = arguments['time_difference_acquire_value']
-
-    channels_signal_rate_acquire_event = arguments['channels_signal_rate_acquire_event']
-    channels_signal_rate_acquire_value = arguments['channels_signal_rate_acquire_value']
 
     signal_spectrum_acquire_event = arguments['signal_spectrum_acquire_event']
     signal_spectrum_acquire_value = arguments['signal_spectrum_acquire_value']
@@ -161,10 +184,8 @@ def _playback_worker(playback_buffers, arguments, settings, verbose):
             # it for more robust and scalable version of using playback files...
             buffers = work_buffers.pop(0)
 
-            process_buffers(buffers, settings, arguments['time_window'],
-                time_difference_acquire_value, time_difference_acquire_event,
-                signal_spectrum_acquire_value, signal_spectrum_acquire_event,
-                channels_signal_rate_acquire_value, channels_signal_rate_acquire_event)
+            process_buffers(buffers, settings, arguments['time_window'], None,
+                signal_spectrum_acquire_value, signal_spectrum_acquire_event)
 
         # Pause, sub loop or main loop can be triggers in the application.
         # In those cases other new settings might be arriving too like
@@ -240,33 +261,11 @@ def playback_worker(arguments, playback_file, verbose, playback_fail = False):
 
     return settings
 
-def raising_edges_for_raw_pulses(data, width = 50, distance = 50, threshold = 128):
-    return find_peaks(
-            data,
-            width = width,
-            distance = distance,
-            threshold = threshold)[0]
-
-def raising_edges_for_square_pulses(data):
-    pos = data > 0
-    return (pos[:-1] & ~pos[1:]).nonzero()[0]
-
-def baseline_correction_and_limit(data, limit):
-    bca = baseline_correct(data)
-    bca[bca < limit] = 0
-    return bca
-
 def picoscope_worker(arguments, ps, picoscope_mode, verbose):
 
     # Gather events and values to lessen dictionary loop ups in the while loop.
     settings_acquire_event = arguments['settings_acquire_event']
     settings_acquire_value = arguments['settings_acquire_value']
-
-    time_difference_acquire_event = arguments['time_difference_acquire_event']
-    time_difference_acquire_value = arguments['time_difference_acquire_value']
-
-    channels_signal_rate_acquire_event = arguments['channels_signal_rate_acquire_event']
-    channels_signal_rate_acquire_value = arguments['channels_signal_rate_acquire_value']
 
     signal_spectrum_acquire_event = arguments['signal_spectrum_acquire_event']
     signal_spectrum_acquire_value = arguments['signal_spectrum_acquire_value']
@@ -279,6 +278,9 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
     # Directory from the application or multiprocessing settings?
     csv_data_file = 'picoscope_data_%s_%s_%s_%s_%s.csv' % (c.year, c.month, c.day, c.hour, c.minute)
 
+    rate_a, rate_b, rate_ab, counts_max_a, counts_max_b, rate_a_avg, rate_b_avg, rate_ab_avg = (0, 0, 0, 0, 0, 0, 0, 0)
+    rate_count = 0
+
     while settings['main_loop']:
 
         try:
@@ -288,19 +290,39 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
             # TODO: Own voltage for each channel!
             ps.set_channels(voltage_range = settings['picoscope']['voltage_range'])
 
+            block_mode_trigger_settings = settings['picoscope']['block_mode_trigger_settings']
+
+            init = True
+            timebase_n = 0
+            start_channel = block_mode_trigger_settings['channel']
+
             if picoscope_mode == 'stream':
-                ps.set_buffers(buffer_size = settings['picoscope']['buffer_size'],
-                               buffer_count = settings['picoscope']['buffer_count'],
-                               interval = settings['picoscope']['interval'],
-                               units = settings['picoscope']['units'])
+                init = ps.set_buffers(buffer_size = settings['picoscope']['buffer_size'],
+                                      buffer_count = settings['picoscope']['buffer_count'],
+                                      interval = settings['picoscope']['interval'],
+                                      units = settings['picoscope']['units'])
             elif picoscope_mode == 'block':
-                ps.set_buffers(
-                    settings['picoscope']['block_mode_trigger_settings'],
-                    settings['picoscope']['block_mode_timebase_settings'],
-                    settings['picoscope']['advanced_trigger_settings']
+                init = ps.set_buffers(
+                        block_mode_trigger_settings,
+                        settings['picoscope']['block_mode_timebase_settings'],
+                        settings['picoscope']['advanced_trigger_settings']
                 )
+                timebase_n = settings['picoscope']['block_mode_timebase_settings']['timebase_n']
+                if timebase_n == 2:
+                    timebase_conversion = 1 / (arguments['time_window'] * 2 / 500000000)
+                else:
+                    timebase_conversion = 1 / (arguments['time_window'] * (timebase_n - 2) / 125000000)
+
+                    # print("")
+                    # print(timebase_conversion, (arguments['time_window'] * (timebase_n - 2) / 125000000), (timebase_n - 2) / 125000000)
+                    # print("")
             else:
                 print('Picoscope mode not supported. Halting the main loop.')
+                settings['main_loop'] = False
+                settings['sub_loop'] = False
+
+            if not init:
+                print('Could not set buffers. Check timebase and other Picoscope settings.')
                 settings['main_loop'] = False
                 settings['sub_loop'] = False
 
@@ -317,11 +339,57 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                     if False:
                         write_buffers(buffers, csv_data_file)
 
-                    process_buffers(buffers, settings, arguments['time_window'],
-                        time_difference_acquire_value, time_difference_acquire_event,
-                        signal_spectrum_acquire_value, signal_spectrum_acquire_event,
-                        channels_signal_rate_acquire_value, channels_signal_rate_acquire_event)
+                    trigger_channel = None if block_mode_trigger_settings['enabled'] == 0 else block_mode_trigger_settings['channel']
+                    sca_a_pulse_count, sca_b_pulse_count = process_buffers(buffers, settings, arguments['time_window'], trigger_channel,
+                        signal_spectrum_acquire_value, signal_spectrum_acquire_event)
 
+                    # Take rate count from the other channel than the triggered.
+                    # Trigger channel will always contain at least one pulse but in reality pulses are
+                    # randomly distributed in time. Thus, taking a number of pulses at random places
+                    # over time should give us best idea of the average pulse rate.
+                    # This will require some good length of the buffer because too small buffer
+                    # would reduce the average hit of the pulses if pulse rate is very low...
+
+                    if start_channel == block_mode_trigger_settings['channel']:
+                        rate_count += 1
+
+                    if block_mode_trigger_settings['channel'] == 1:
+                        rate_a += sca_a_pulse_count
+                        rate_ab = rate_a + rate_b
+                        if counts_max_a < sca_a_pulse_count:
+                            counts_max_a = sca_a_pulse_count
+                        rate_a_avg = timebase_conversion * rate_a / rate_count
+                        rate_ab_avg = timebase_conversion * rate_ab / (rate_count * 2)
+                    else:
+                        rate_b += sca_b_pulse_count
+                        if counts_max_b < sca_b_pulse_count:
+                            counts_max_b = sca_b_pulse_count
+                        rate_b_avg = timebase_conversion * rate_b / rate_count
+
+                    # Calculate, how many pulses there are in a second in average?
+                    # Time window is in nanoseconds, so this needs to be converted to seconds by multiplying with 1000000000.
+                    # Problem of getting real rate is difficult. We count number of pulses per every sweep with a trigger.
+                    # So there will be at least opne pulse per every sweep. But we are not getting data for every time point
+                    # so we miss a lot of data. One way of trying to get around this is to have a long time window and count all
+                    # pulses in there. But it can still have same problem because for high precision buffer we have a limit of 20000ns
+                    # for every bugger and if the rate of the interesting signals is much slower than once in a 20 micro seconds
+                    # the calculation will be biassed. But for high rate constant signals, that should be ok.
+                    # Question for Tandem Experiment is, if there are gamma peaks coming once in every 20 microseconds so that
+                    # the rate calculated here is correct?
+                    #rate_a_avg = (((rate_a / rate_count) / arguments['time_window'])) * 10**9
+                    #rate_b_avg = (((rate_b / rate_count) / arguments['time_window'])) * 10**9
+                    #rate_ab_avg = (((rate_ab / (rate_count*2)) / arguments['time_window'])) * 10**9
+
+
+                    #print("A: %s/s B: %s/s AB: %s/s         \033[A" % (format(rate_a_avg, '.0f'), format(rate_b_avg, '.0f'), format(rate_ab_avg, '.0f')))
+                    print("A: %s (max %s) B: %s (max %s) AB: %s         \033[A" % (round(rate_a_avg, 1), counts_max_a, round(rate_b_avg, 1), counts_max_b, round(rate_ab_avg, 1)))
+                    #print("A: %s/s B: %s/s AB: %s/s         \033[A" % (rate_a_avg, rate_b_avg, rate_ab_avg))
+
+                    # If single channel trigger is set to alternate,
+                    # swap the trigger channel between 0 and 1.
+                    if block_mode_trigger_settings['enabled'] == 1 and block_mode_trigger_settings['alternate_channel'] == True:
+                        block_mode_trigger_settings['channel'] = 1 if block_mode_trigger_settings['channel'] == 0 else 0
+                        ps.set_trigger(**block_mode_trigger_settings)
                     ps.init_capture()
 
                 # Pause, sub loop or main loop can be triggers in the application.
@@ -341,6 +409,8 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
         except Exception as e:
             print(e)
             settings['main_loop'] = False
+
+    print("\r\n")
 
 # Picoscope worker for pulse rate meter, channel line graph,
 # time difference and detector spectrum histograms.

@@ -88,7 +88,7 @@ def set_buffers(buffer_size = 500, buffer_count = 2, interval = 128, units = 'NS
             ratio_mode_none
         )
 
-    start_streaming(interval, units)
+    return start_streaming(interval, units) == 0
 
 # Start streaming
 # units: = NS (nanoseconds), US (microseconds)
@@ -96,7 +96,7 @@ def set_buffers(buffer_size = 500, buffer_count = 2, interval = 128, units = 'NS
 def start_streaming(interval = 128, units = 'NS', maxPreTriggerSamples = 0, autoStopOn = 0, downsampleRatio = 1):
     global chandle, totalSamples, sizeOfOneBuffer, ratio_mode_none
     # Begin streaming mode
-    ps.ps2000aRunStreaming(
+    return ps.ps2000aRunStreaming(
         chandle,
         byref(c_int32(interval)),
         ps.PS2000A_TIME_UNITS['PS2000A_%s' % units],
