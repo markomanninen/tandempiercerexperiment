@@ -1,0 +1,42 @@
+{
+    "full": {
+        "spectrum_low_limits": [500, 500],
+        "spectrum_high_limits": [19660, 19660],
+        "sca_module_settings": {
+            "channel_a": {
+                "coarse_gain": 4,
+                "fine_gain": 3.7,
+                "lower_level": 0.1,
+                "mode": "diff",
+                "window": 10.0
+            },
+            "channel_b": {
+                "coarse_gain": 4,
+                "fine_gain": 10.0,
+                "lower_level": 0.1,
+                "mode": "diff",
+                "window": 10.0
+            }
+        }
+    },
+    "gamma": {
+        "spectrum_low_limits": [8000, 8000],
+        "spectrum_high_limits": [12000, 12000],
+        "sca_module_settings": {
+            "channel_a": {
+                "coarse_gain": 4,
+                "fine_gain": 3.7,
+                "lower_level": 4.2,
+                "mode": "diff",
+                "window": 5.0
+            },
+            "channel_b": {
+                "coarse_gain": 4,
+                "fine_gain": 10.0,
+                "lower_level": 4.2,
+                "mode": "diff",
+                "window": 5.0
+            }
+        }
+    }
+}
