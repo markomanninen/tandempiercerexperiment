@@ -71,6 +71,12 @@ def load_args(default_config):
         type = boolean_type,
         help = "Generate report from the measurement. Measurement data must be in the sub directory defined by measurement_dir. Options are: true|false. Default is: False")
 
+    parser.add_argument("--generate_summary",
+        dest = "generate_summary",
+        default = False,
+        type = boolean_type,
+        help = "Generate summary report from the measurements in all experiments. Measurement data is collected from the measurements_dir. Options are: true|false. Default is: False")
+
     parser.add_argument("--pulse_source",
         dest = "pulse_source",
         default = default_config["pulse_source"],
