@@ -1,0 +1,11 @@
+{
+    "start_time": "2022-01-25 20:22:59",
+    "elapsed_time": "4:00:00",
+    "time_window": 2000,
+    "channel_a_count": 50473,
+    "channel_b_count": 38896,
+    "channel_a_rate": 3.39,
+    "channel_b_rate": 2.94,
+    "coincidence_count": 7,
+    "coincidence_rate": 1.85e-4
+}
