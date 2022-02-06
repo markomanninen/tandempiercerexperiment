@@ -13,7 +13,7 @@ from random import randint as random, uniform
 from pyqtgraph.Qt import QtGui
 from time import sleep
 from . gui import App
-from . functions import baseline_correction_and_limit, raising_edges_for_raw_pulses, raising_edges_for_square_pulses
+from . functions import baseline_correction_and_limit, raising_edges_for_raw_pulses, raising_edges_for_square_pulses, load_buffers, write_buffers
 
 # For nicer console output.
 import colorama
@@ -481,32 +481,6 @@ def multi_worker(picoscope_mode, arguments, playback_file = "", verbose = False)
         print("Could not start simulator, playback mode, or picoscope. Quiting application.")
 
     os.kill(arguments["main_process_id"], signal.CTRL_C_EVENT)
-
-def write_buffers(buffers, file):
-    f = open(file, "a")
-    for i, b in enumerate(buffers):
-        print(*([i]+list(b)), sep = ";", file = f)
-    f.close()
-
-def load_buffers(file, buffers = [], b = [], first_line = True):
-    with open(file, "r") as f:
-        for line in f:
-            items = line.strip().split(";")
-            # All data is string in a csv file.
-            if items[0] == "0":
-                # If the first line of the file is parsed,
-                # b list should not be appended to the final result.
-                if not first_line:
-                    buffers.append(b)
-                    b = []
-                first_line = False
-            # Must convert to str to int.
-            b.append(list(map(int, items[1:])))
-        # If all four channels are retrieved from the file for
-        # the tail of the buffer append b to the final result.
-        if len(b) == 4:
-            buffers.append(b)
-    return buffers
 
 # Start PyQT application if headless mode is off.
 def main_program(application_configuration, multiprocessing_arguments):
