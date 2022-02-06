@@ -1,10 +1,11 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-import os
-from multiprocessing import Process, Manager, Event
+import os, subprocess
 from time import sleep
+from datetime import datetime
 from tpe.workers import multi_worker, main_program
+from multiprocessing import Process, Manager, Event
 from tpe.configs import load_config
 from tpe.arguments import load_args
 
@@ -44,11 +45,29 @@ def main():
         # Measurement step number 1-5. Default is 1.
         step = args.measurement_step
 
+        experiment_dir = args.experiment_dir
+
+        # Create experiment project directory.
+        if os.path.exists(os.path.join(args.experiments_dir, experiment_dir)):
+            c = datetime.now()
+            experiment_dir = "%s_%s" % (experiment_dir, '%s_%s_%s_%s_%s' % (c.year, c.month, c.day, c.hour, c.minute))
+            os.makedirs(os.path.join(
+                args.experiments_dir,
+                experiment_dir
+            ))
+        else:
+            os.makedirs(os.path.join(
+                args.experiments_dir,
+                experiment_dir
+            ))
+
         # Steps from 1 to 4 are actual measurements. Final stage of the experiment is to create a report from all of the previous steps. There is no need to proceed further in in the main program in that case. Instead we open Jupyter notebook with a template file, initialize it with the current experiment sub directory and run all the cells to get a fine report of the measurements.
         if args.generate_report:
-            import subprocess
             # Jupyter notebook template is used to present all graphical, tabular and textual data.
             subprocess.call(['jupyter', 'notebook', './report_template.ipynb', '--NotebookApp.iopub_data_rate_limit=1000000'])
+        elif args.generate_summary:
+            # Jupyter notebook template is used to present all graphical, tabular and textual data.
+            subprocess.call(['jupyter', 'notebook', './report_summary.ipynb', '--NotebookApp.iopub_data_rate_limit=1000000'])
         else:
             # Json configuration file keys are in string format, thus step is cast to string.
             step_config = config["steps"][str(step)]
@@ -57,7 +76,7 @@ def main():
             if step in (2, 3, 4):
                 region_config_name = os.path.join(
                     args.experiments_dir,
-                    args.experiment_dir,
+                    experiment_dir,
                     "regions.json"
                 )
                 if os.path.exists(region_config_name):
@@ -115,7 +134,7 @@ def main():
             # Main directory where all experiments are stored.
             application_configuration["experiments_dir"] = args.experiments_dir
             # Individual experiment sub directory.
-            application_configuration["experiment_dir"] = args.experiment_dir
+            application_configuration["experiment_dir"] = experiment_dir
             # PicoScope on / off.
             # TODO: Final status of PicoScope depends on the initialization of the scope.
             # If it works, then it is really on. Information should then be updated to the GUI.
@@ -260,6 +279,11 @@ def main():
 
     # Main CTRL-C interruption error handler.
     except KeyboardInterrupt:
+        # Remove empty project directory.
+        project_dir = os.path.join(args.experiments_dir, experiment_dir)
+        if os.path.exists(project_dir) and not os.listdir(project_dir):
+            os.rmdir(project_dir)
+
         # You can use also ctrl-c in console to exit graphical ui.
         # ctrl-q works as a shortcut to quit application from the GUI.
         # Terminate all processes that are stored to the global process list.
