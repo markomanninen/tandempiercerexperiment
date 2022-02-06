@@ -111,20 +111,22 @@ def create_config():
     data["histogram_queue_size"] = 30000
     # If pulse voltage range is 20, use 19660 for max adc value since 12V is the maximmum that Ortec SCA module will give.
 
-    adc_max_0, adc_max_1, adc_max_2, adc_max_3 = (32767, 32767, 32767, 32767)
+    # (2^16) / 2. Min is -32768
+    adc_max_0, adc_max_1, adc_max_2, adc_max_3 = (32768, 32768, 32768, 32768)
 
     adc_min_0, adc_min_1, adc_min_2, adc_min_3 = (4096, 4096, 500, 500)
 
     if data["voltage_range"][2] == "20V":
-        adc_max_2 = 19660 # 19660 for 12V (20V)
+        adc_max_2 = 19661 # 19660 for 12V (20V)
     if data["voltage_range"][3] == "20V":
-        adc_max_3 = 19660 # 19660 for 12V (20V)
+        adc_max_3 = 19661 # 19660 for 12V (20V)
 
     # In large timebases it is possible to use this value as max buffer size, but it will cause "arbitrary" time value, so 6000 is rather used. Also, with smaller timebases the maximum is 5000.
     trigger_sample_max = 6132
 
     # ADC max value.
-    data["adc_max"] = 19660
+    # 32768 / 20 * 12
+    data["adc_max"] = 19661
 
     # Sleep time in streaming_loop.
     data["sleep_time"] = 0.01
