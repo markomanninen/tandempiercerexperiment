@@ -134,6 +134,18 @@ def create_config():
     # Sleep time in the process of retrieving data from the picoscope.
     data["sleep_interval"] = (.00001, .00001)
 
+    # Store waveforms from PicoScope channel signals to csv files.
+    # 0 = disabled
+    # 1 = only coincidence signals
+    # 2 = all triggered signals
+    data["store_waveforms"] = 0
+
+    # Define channels that are used to store signals. Use with store_waveforms options.
+    data["store_waveforms_channels"] = "ABCD"
+
+    # Automatic halt for execution of the experiment. 0 means no interruption, quiting must be done from the application or ctrl-c from console. 3600 means an hour of execution, then halting it.
+    data["execution_time"] = 0
+
     # Experiment step configurations.
 
     steps = {}

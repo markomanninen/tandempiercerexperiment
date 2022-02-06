@@ -11,9 +11,12 @@ os.environ["FOR_DISABLE_CONSOLE_CTRL_HANDLER"] = "1"
 from datetime import datetime
 from random import randint as random, uniform
 from pyqtgraph.Qt import QtGui
-from time import sleep
+from time import sleep, time as tm
 from . gui import App
-from . functions import baseline_correction_and_limit, raising_edges_for_raw_pulses, raising_edges_for_square_pulses, load_buffers, write_buffers
+from . functions import baseline_correction_and_limit, \
+                        raising_edges_for_raw_pulses, \
+                        raising_edges_for_square_pulses, \
+                        load_buffers, write_buffers
 
 # For nicer console output.
 import colorama
@@ -102,6 +105,10 @@ def simulator_worker(arguments, verbose):
 
     settings = settings_acquire_value["value"]
 
+    start_time = tm()
+
+    execution_time = start_time + arguments["execution_time"]
+
     try:
 
         while settings["sub_loop"] and settings["main_loop"]:
@@ -135,6 +142,12 @@ def simulator_worker(arguments, verbose):
                     )
                 )
                 signal_spectrum_acquire_event.set()
+
+                # If execution time has exceeded, stop loops and application.
+                if tm() > execution_time:
+                    print("Execution time (%ss) of the experiment has ended." % arguments["execution_time"])
+                    settings["sub_loop"] = False
+                    settings["main_loop"] = False
 
             # Pause, sub loop or main loop can be triggers in the application.
             # In those cases other new settings might be arriving too like
@@ -171,6 +184,10 @@ def _playback_worker(playback_buffers, arguments, settings, verbose):
     # from the beginning in the playback mode.
     work_buffers = playback_buffers[:]
 
+    start_time = tm()
+
+    execution_time = start_time + arguments["execution_time"]
+
     while settings["sub_loop"]:
 
         # It is possible to pause data retrieval from the application menu.
@@ -187,6 +204,12 @@ def _playback_worker(playback_buffers, arguments, settings, verbose):
 
             process_buffers(buffers, settings, arguments["time_window"], None,
                 signal_spectrum_acquire_value, signal_spectrum_acquire_event)
+
+            # If execution time has exceeded, stop loops and application.
+            if tm() > execution_time:
+                print("Execution time (%ss) of the experiment has ended." % arguments["execution_time"])
+                settings["sub_loop"] = False
+                settings["main_loop"] = False
 
         # Pause, sub loop or main loop can be triggers in the application.
         # In those cases other new settings might be arriving too like
@@ -273,14 +296,14 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
 
     settings = settings_acquire_value["value"]
 
-    c = datetime.now()
-
-    # Move csv file to experiment directory, might it have been finished.
-    # Directory from the application or multiprocessing settings?
-    csv_data_file = "picoscope_data_%s_%s_%s_%s_%s.csv" % (c.year, c.month, c.day, c.hour, c.minute)
+    csv_waveform_file = os.path.join(arguments["experiments_dir"], arguments["experiment_dir"], "waveform.csv")
 
     rate_a, rate_b, rate_ab, counts_max_a, counts_max_b, rate_a_avg, rate_b_avg, rate_ab_avg = (0, 0, 0, 0, 0, 0, 0, 0)
     rate_count = 0
+
+    start_time = tm()
+
+    execution_time = start_time + arguments["execution_time"]
 
     while settings["main_loop"]:
 
@@ -336,13 +359,22 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
 
                     buffers = list(ps.get_buffers())
 
-                    # Get recording flag from application (initialized from argument parser).
-                    if False:
-                        write_buffers(buffers, csv_data_file)
-
                     trigger_channel = None if block_mode_trigger_settings["enabled"] == 0 else block_mode_trigger_settings["channel"]
                     sca_a_pulse_count, sca_b_pulse_count = process_buffers(buffers, settings, arguments["time_window"], trigger_channel,
                         signal_spectrum_acquire_value, signal_spectrum_acquire_event)
+
+                    # Get recording flag from application (initialized from argument parser).
+                    if (arguments["store_waveforms"] == 1 and sca_a_pulse_count > 0 and sca_b_pulse_count > 0) or arguments["store_waveforms"] == 2:
+                        store = []
+                        if "A" in arguments["store_waveforms_channels"]:
+                            store.append(buffers[0])
+                        if "B" in arguments["store_waveforms_channels"]:
+                            store.append(buffers[1])
+                        if "C" in arguments["store_waveforms_channels"]:
+                            store.append(buffers[2])
+                        if "D" in arguments["store_waveforms_channels"]:
+                            store.append(buffers[3])
+                        write_buffers(store, csv_waveform_file)
 
                     # Take rate count from the other channel than the triggered.
                     # Trigger channel will always contain at least one pulse but in reality pulses are
@@ -392,6 +424,12 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                         block_mode_trigger_settings["channel"] = 1 if block_mode_trigger_settings["channel"] == 0 else 0
                         ps.set_trigger(**block_mode_trigger_settings)
                     ps.init_capture()
+
+                    # If execution time has exceeded, stop loops and application.
+                    if tm() > execution_time:
+                        print("Execution time (%ss) of the experiment has ended." % arguments["execution_time"])
+                        settings["sub_loop"] = False
+                        settings["main_loop"] = False
 
                 # Pause, sub loop or main loop can be triggers in the application.
                 # In those cases other new settings might be arriving too like

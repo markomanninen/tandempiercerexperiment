@@ -8,6 +8,7 @@ from tpe.workers import multi_worker, main_program
 from multiprocessing import Process, Manager, Event
 from tpe.configs import load_config
 from tpe.arguments import load_args
+from tpe.functions import step2_json_file, step3_json_file
 
 # Add multi process targets to the list
 def add_process(target, name = "", args = None):
@@ -36,16 +37,20 @@ def main():
 
     try:
 
-        # Default configurations in jason format.
+        # Default configurations in json format.
         config = load_config()
 
         # Console arguments. Using defaults from config.
         args = load_args(config)
 
-        # Measurement step number 1-5. Default is 1.
+        # Measurement step number 1, 1.2, 1.3, 1.4, 2, 3, 4. Default is 1.
         step = args.measurement_step
 
+        # Default experiment directory.
         experiment_dir = args.experiment_dir
+
+        if config["experiment_dir"] == experiment_dir:
+            pass
 
         # Create experiment project directory.
         if os.path.exists(os.path.join(args.experiments_dir, experiment_dir)):
@@ -72,6 +77,11 @@ def main():
             # Json configuration file keys are in string format, thus step is cast to string.
             step_config = config["steps"][str(step)]
 
+            # Chance rate and background rate can be provided in the arguments.
+            # But these will be replaced by the measurement steps 2 and 3 if they are available.
+            chance_rate = args.chance_rate
+            background_rate = args.background_rate
+
             # If measurement step is one of these, load low and high region limits from the experiment step 1 file.
             if step in (2, 3, 4):
                 region_config_name = os.path.join(
@@ -88,6 +98,26 @@ def main():
                     step_config["spectrum_low_limits"][3] = region_config["gamma"]["spectrum_low_limits"][1]
                     step_config["spectrum_high_limits"][2] = region_config["gamma"]["spectrum_high_limits"][0]
                     step_config["spectrum_high_limits"][3] = region_config["gamma"]["spectrum_high_limits"][1]
+
+                # It is possible to calculate and show unquantum effect ratio in the fourth measurement.
+                if step == 4:
+                    dir = os.path.join(
+                        args.experiments_dir,
+                        experiment_dir,
+                        step2_json_file
+                    )
+                    if os.path.exists(dir):
+                        step2 = show_step2_results(dir)
+                        chance_rate = step2[""]["Chance Rate (1/s)"]
+
+                    dir = os.path.join(
+                        args.experiments_dir,
+                        experiment_dir,
+                        step3_json_file
+                    )
+                    if os.path.exists(dir):
+                        step3 = show_step3_results(dir)
+                        background_rate = step3[""]["Coincidence Rate (1/s)"]
 
             voltage_range = config["voltage_range"]
             sca_module_settings = step_config["sca_module_settings"]
@@ -120,9 +150,9 @@ def main():
             # Are we using GUI or headless mode i.e. only console for output?
             application_configuration["headless_mode"] = args.headless_mode
             # Change rate measured in a separate measurement step 2.
-            application_configuration["chance_rate"] = args.chance_rate
+            application_configuration["chance_rate"] = chance_rate
             # Background rate measured in a separate measurement step 3.
-            application_configuration["background_rate"] = args.background_rate
+            application_configuration["background_rate"] = background_rate
             # Experiment name for all measurements.
             application_configuration["experiment_name"] = args.experiment_name
             # What is the max value of the time difference x-axis in nanoseconds?
@@ -178,6 +208,10 @@ def main():
                     trigger_channels = "B"
             application_configuration["trigger_channels"] = trigger_channels
 
+            application_configuration["store_waveforms"] = args.store_waveforms
+            application_configuration["store_waveforms_channels"] = args.store_waveforms_channels
+            application_configuration["execution_time"] = args.execution_time
+
             arguments = [
                 # Share signal spectrum dictionary between processes.
                 "signal_spectrum_acquire_",
@@ -205,6 +239,16 @@ def main():
             multiprocessing_arguments["chance_rate"] = application_configuration["chance_rate"]
 
             multiprocessing_arguments["background_rate"] = application_configuration["background_rate"]
+
+            multiprocessing_arguments["store_waveforms"] = application_configuration["store_waveforms"]
+
+            multiprocessing_arguments["store_waveforms_channels"] = application_configuration["store_waveforms_channels"]
+
+            multiprocessing_arguments["execution_time"] = application_configuration["execution_time"]
+
+            multiprocessing_arguments["experiments_dir"] = application_configuration["experiments_dir"]
+
+            multiprocessing_arguments["experiment_dir"] = application_configuration["experiment_dir"]
 
             print("Main process started: %s" % multiprocessing_arguments["main_process_id"])
 

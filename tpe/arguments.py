@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import argparse
 from distutils.util import strtobool
+from ast import literal_eval
 
 class PicoScopeModes(argparse.Action):
     def __call__(self, parser, namespace, value, option_string=None):
@@ -11,6 +12,9 @@ class PicoScopeModes(argparse.Action):
 
 def boolean_type(value):
     return strtobool(value)
+
+def int_type(value):
+    return literal_eval(value)
 
 # Main python program executed when run from the console.
 def load_args(default_config):
@@ -77,10 +81,27 @@ def load_args(default_config):
         type = boolean_type,
         help = "Generate summary report from the measurements in all experiments. Measurement data is collected from the measurements_dir. Options are: true|false. Default is: False")
 
+    parser.add_argument("--store_waveforms",
+        dest = "store_waveforms",
+        default = default_config["store_waveforms"],
+        type = int_type,
+        help = "Store waveforms from buffers to csv files. Options are: 0=disabled, 1=only when coincident  signals are found, 2=all triggered waveforms. Default is: %s" % default_config["store_waveforms"])
+
+    parser.add_argument("--store_waveforms_channels",
+        dest = "store_waveforms_channels",
+        default = default_config["store_waveforms_channels"],
+        help = "When store_waveforms from buffers to csv files is used, this option defines what channels are stored to the file. Options are some of these characters: ABCD. Default is: %s" % default_config["store_waveforms_channels"])
+
+    parser.add_argument("--execution_time",
+        dest = "execution_time",
+        default = default_config["execution_time"],
+        type = int_type,
+        help = "Automatic halt for execution of the experiment. Options are: 0=for non-interrupting execution of the expriment, else define time in seconds, for example 3600 for an hour. Default is: %s seconds." % default_config["execution_time"])
+
     parser.add_argument("--pulse_source",
         dest = "pulse_source",
         default = default_config["pulse_source"],
-        help = "Pulse radiation source label. For example: Cd-109 10mci. Default is: " + default_config["pulse_source"])
+        help = "Pulse radiation source label. For example: Cd-109 10μCi. Default is: " + default_config["pulse_source"])
 
     parser.add_argument("--spectrum_range",
         dest = "spectrum_range",
@@ -96,7 +117,7 @@ def load_args(default_config):
         dest = "picoscope_mode",
         default = "block",
         action = PicoScopeModes,
-        help = "PicoScope mode for importing the data acqution module. Options are: block, stream, None. Default is: block.")
+        help = "PicoScope mode for importing the data acquisition module. Options are: block, stream, None. Default is: block.")
 
     parser.add_argument("--verbose",
         dest = "verbose",
