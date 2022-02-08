@@ -55,7 +55,7 @@ def main():
         # Create experiment project directory.
         if os.path.exists(os.path.join(args.experiments_dir, experiment_dir)):
             c = datetime.now()
-            experiment_dir = "%s_%s" % (experiment_dir, '%s_%s_%s_%s_%s' % (c.year, c.month, c.day, c.hour, c.minute))
+            experiment_dir = "%s_%s" % (experiment_dir, "%s_%s_%s_%s_%s" % (c.year, c.month, c.day, c.hour, c.minute))
             os.makedirs(os.path.join(
                 args.experiments_dir,
                 experiment_dir
@@ -69,10 +69,10 @@ def main():
         # Steps from 1 to 4 are actual measurements. Final stage of the experiment is to create a report from all of the previous steps. There is no need to proceed further in in the main program in that case. Instead we open Jupyter notebook with a template file, initialize it with the current experiment sub directory and run all the cells to get a fine report of the measurements.
         if args.generate_report:
             # Jupyter notebook template is used to present all graphical, tabular and textual data.
-            subprocess.call(['jupyter', 'notebook', './report_template.ipynb', '--NotebookApp.iopub_data_rate_limit=1000000'])
+            subprocess.call(["jupyter", "notebook", "./report_template/report_template.ipynb", "--NotebookApp.iopub_data_rate_limit=1000000"])
         elif args.generate_summary:
             # Jupyter notebook template is used to present all graphical, tabular and textual data.
-            subprocess.call(['jupyter', 'notebook', './report_summary.ipynb', '--NotebookApp.iopub_data_rate_limit=1000000'])
+            subprocess.call(["jupyter", "notebook", "./report_template/report_summary.ipynb", "--NotebookApp.iopub_data_rate_limit=1000000"])
         else:
             # Json configuration file keys are in string format, thus step is cast to string.
             step_config = config["steps"][str(step)]
