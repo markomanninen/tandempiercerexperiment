@@ -296,10 +296,11 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
 
     settings = settings_acquire_value["value"]
 
-    csv_waveform_file = os.path.join(arguments["experiments_dir"], arguments["experiment_dir"], "waveform.csv")
+    rate_a, rate_b, rate_ab, counts_max_a, counts_max_b, counts_min_a, counts_min_b, rate_a_avg, rate_b_avg, rate_ab_avg = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
-    rate_a, rate_b, rate_ab, counts_max_a, counts_max_b, rate_a_avg, rate_b_avg, rate_ab_avg = (0, 0, 0, 0, 0, 0, 0, 0)
     rate_count = 0
+
+    csv_waveform_file = os.path.join(arguments["experiments_dir"], arguments["experiment_dir"], "waveform.csv")
 
     start_time = tm()
 
@@ -319,6 +320,11 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
             init = True
             timebase_n = 0
             start_channel = block_mode_trigger_settings["channel"]
+            pulse_source = arguments["pulse_source"]
+            chance_rate = arguments["chance_rate"]
+            background_rate = arguments["background_rate"]
+            start_time = tm()
+            coincidence_count = 0
 
             if picoscope_mode == "stream":
                 init = ps.set_buffers(buffer_size = settings["picoscope"]["buffer_size"],
@@ -326,20 +332,25 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                                       interval = settings["picoscope"]["interval"],
                                       units = settings["picoscope"]["units"])
             elif picoscope_mode == "block":
+
                 init = ps.set_buffers(
                         block_mode_trigger_settings,
                         settings["picoscope"]["block_mode_timebase_settings"],
                         settings["picoscope"]["advanced_trigger_settings"]
                 )
                 timebase_n = settings["picoscope"]["block_mode_timebase_settings"]["timebase_n"]
-                if timebase_n == 2:
-                    timebase_conversion = 1 / (arguments["time_window"] * 2 / 500000000)
-                else:
-                    timebase_conversion = 1 / (arguments["time_window"] * (timebase_n - 2) / 125000000)
 
-                    # print("")
-                    # print(timebase_conversion, (arguments["time_window"] * (timebase_n - 2) / 125000000), (timebase_n - 2) / 125000000)
-                    # print("")
+                if timebase_n == 2:
+                    buffer_length_ns = arguments["time_window"] * 2 / 500000000
+                else:
+                    buffer_length_ns = arguments["time_window"] * (timebase_n - 2) / 125000000
+
+                timebase_conversion = 1 / buffer_length_ns
+
+                print("\n")
+                console_line = "Source: %s Timebase: %s Time window: %s Buffer length: %s (s) Time conversion: %d"
+                print(console_line % (pulse_source, timebase_n, arguments["time_window"], buffer_length_ns, timebase_conversion))
+                print("\n")
             else:
                 print("Picoscope mode not supported. Halting the main loop.")
                 settings["main_loop"] = False
@@ -359,8 +370,12 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
 
                     buffers = list(ps.get_buffers())
 
+                    # Get recording flag from application (initialized from argument parser).
+                    if False:
+                        write_buffers(buffers, csv_data_file)
+
                     trigger_channel = None if block_mode_trigger_settings["enabled"] == 0 else block_mode_trigger_settings["channel"]
-                    sca_a_pulse_count, sca_b_pulse_count = process_buffers(buffers, settings, arguments["time_window"], trigger_channel,
+                    sca_a_pulse_count, sca_b_pulse_count = process_buffers(buffers, settings, arguments, trigger_channel,
                         signal_spectrum_acquire_value, signal_spectrum_acquire_event)
 
                     # Get recording flag from application (initialized from argument parser).
@@ -375,6 +390,8 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                         if "D" in arguments["store_waveforms_channels"]:
                             store.append(buffers[3])
                         write_buffers(store, csv_waveform_file)
+
+                    coincidence_count += sca_a_pulse_count * sca_b_pulse_count
 
                     # Take rate count from the other channel than the triggered.
                     # Trigger channel will always contain at least one pulse but in reality pulses are
@@ -391,12 +408,16 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                         rate_ab = rate_a + rate_b
                         if counts_max_a < sca_a_pulse_count:
                             counts_max_a = sca_a_pulse_count
+                        if counts_min_a > sca_a_pulse_count:
+                            counts_min_a = sca_a_pulse_count
                         rate_a_avg = timebase_conversion * rate_a / rate_count
                         rate_ab_avg = timebase_conversion * rate_ab / (rate_count * 2)
                     else:
                         rate_b += sca_b_pulse_count
                         if counts_max_b < sca_b_pulse_count:
                             counts_max_b = sca_b_pulse_count
+                        if counts_min_b > sca_b_pulse_count:
+                            counts_min_b = sca_b_pulse_count
                         rate_b_avg = timebase_conversion * rate_b / rate_count
 
                     # Calculate, how many pulses there are in a second in average?
@@ -409,13 +430,10 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                     # the calculation will be biassed. But for high rate constant signals, that should be ok.
                     # Question for Tandem Experiment is, if there are gamma peaks coming once in every 20 microseconds so that
                     # the rate calculated here is correct?
-                    #rate_a_avg = (((rate_a / rate_count) / arguments["time_window"])) * 10**9
-                    #rate_b_avg = (((rate_b / rate_count) / arguments["time_window"])) * 10**9
-                    #rate_ab_avg = (((rate_ab / (rate_count*2)) / arguments["time_window"])) * 10**9
+                    console_line = "Samples: %s/%ss Elapsed: %ss | A rate: %s/s (min/max: %s/%s) B rate: %s/s (min/max: %s/%s) AB avg rate: %s/s Chance rate: %s (500ns) Coincidence rate: %s         \033[A"
 
-
-                    #print("A: %s/s B: %s/s AB: %s/s         \033[A" % (format(rate_a_avg, ".0f"), format(rate_b_avg, ".0f"), format(rate_ab_avg, ".0f")))
-                    print("A: %s (max %s) B: %s (max %s) AB: %s         \033[A" % (round(rate_a_avg, 1), counts_max_a, round(rate_b_avg, 1), counts_max_b, round(rate_ab_avg, 1)))
+                    elapsed_time = tm() - start_time
+                    print(console_line % (rate_count, round(buffer_length_ns * rate_count, 1), round(elapsed_time, 1), round(rate_a_avg, 1), counts_min_a, counts_max_a, round(rate_b_avg, 1), counts_min_b, counts_max_b, round(rate_ab_avg, 1), round(rate_a_avg * rate_b_avg * 5*10**-7, 6), round(coincidence_count / elapsed_time, 6)))
                     #print("A: %s/s B: %s/s AB: %s/s         \033[A" % (rate_a_avg, rate_b_avg, rate_ab_avg))
 
                     # If single channel trigger is set to alternate,
@@ -520,13 +538,16 @@ def multi_worker(picoscope_mode, arguments, playback_file = "", verbose = False)
 
     os.kill(arguments["main_process_id"], signal.CTRL_C_EVENT)
 
-# Start PyQT application if headless mode is off.
+# Start PyQT application
 def main_program(application_configuration, multiprocessing_arguments):
 
     # Suppress traceback messages on application quit / ctrl-c in console.
     signal.signal(signal.SIGINT, lambda x, y: sys.exit(0))
 
     if not application_configuration["headless_mode"]:
+
+        from pyqtgraph.Qt import QtGui
+        from . gui import App
 
         app = QtGui.QApplication(sys.argv)
         # Init QT app with configuration.
