@@ -1042,12 +1042,12 @@ class ExperimentControlPanel(QtGui.QTabWidget):
              'header': 'Calculated BG Coincidence Rate'},
 
             # These are special labels for true coincidence mode.
-            {'key': 'change_rate',
-             'header': 'Change Rate'},
+            {'key': 'chance_rate',
+             'header': 'Chance Rate'},
 
             # Correction is done based on background radiation singles_background_full_near and gamma peak separately.
-            {'key': 'corrected_change_rate',
-             'header': 'Corrected Change Rate'},
+            {'key': 'corrected_chance_rate',
+             'header': 'Corrected Chance Rate'},
 
             {'key': '', 'header': ''}, {'key': '', 'header': ''}, {'key': '', 'header': ''}
         ]
@@ -1169,12 +1169,12 @@ class ExperimentControlPanel(QtGui.QTabWidget):
              'header': 'Calculated BG Coincidence Rate'},
 
             # These are special labels for true coincidence mode.
-            {'key': 'change_rate',
-             'header': 'Change Rate'},
+            {'key': 'chance_rate',
+             'header': 'Chance Rate'},
 
             # Correction is done based on background radiation singles_background_full_near and gamma peak separately.
-            {'key': 'corrected_change_rate',
-             'header': 'Corrected Change Rate'},
+            {'key': 'corrected_chance_rate',
+             'header': 'Corrected Chance Rate'},
 
             {'key': 'tandem_experiment_rate',
              'header': 'Experiment Rate'},
@@ -1932,10 +1932,10 @@ class App(QtGui.QMainWindow):
         self.background_rate = 0
 
         # Chance rate (R_c = R_1 * R_2 * T_w)
-        # Change rate is calculated by multiplying detector a and b rates with the time window.
+        # Chance rate is calculated by multiplying detector a and b rates with the time window.
         # This is done with the set_chance_rate method.
         self.chance_rate = 0
-        self.corrected_change_rate = 0
+        self.corrected_chance_rate = 0
 
         # Experiment rate (R_e = C_t ÷ T_t)
         # Total coincidence clicks divided by time difference is done with the
@@ -1950,10 +1950,10 @@ class App(QtGui.QMainWindow):
 
         # Unquantum Effect (UE = R_r ÷ R_c)
         # Measurement 3 - Final calculation is done with the ratio of the corrected rate
-        # and the change rate. If corrected experiment rate is bigger than change
+        # and the chance rate. If corrected experiment rate is bigger than chance
         # unquantum effect is greater than one. If UE rate is two or more, it indicates
         # anomaly that contradicts quantum mechanical model. QM predicts that
-        # the experiment rate is about the change rate with some error margin.
+        # the experiment rate is about the chance rate with some error margin.
         # Use set_unquantum_effect to calculate this value.
         self.unquantum_effect = 0
 
@@ -1993,7 +1993,7 @@ class App(QtGui.QMainWindow):
         # which makes square wave pulses from the detector signals. If they happen
         # in a close enough time window, we consider them as coincident.
         # Time difference window shows the distribution of the coincidence clicks
-        # but the real calculation is done with the experiment and change rate comparison.
+        # but the real calculation is done with the experiment and chance rate comparison.
         self.total_coincident_clicks_detectors = 0
 
         # Singles count from the detector a (C_1)
@@ -2316,10 +2316,10 @@ class App(QtGui.QMainWindow):
             calculated_background_radiation_rate = '+'
             calculated_background_coincidence_rate = '+'
 
-        change_rate = corrected_change_rate = '-'
+        chance_rate = corrected_chance_rate = '-'
         if self.start_measurement2 or self.start_measurement3:
-            change_rate = str(round(self.chance_rate, 6)) # convert to seconds?
-            corrected_change_rate = str(round(self.corrected_change_rate, 6)) # convert to seconds?
+            chance_rate = str(round(self.chance_rate, 6)) # convert to seconds?
+            corrected_chance_rate = str(round(self.corrected_chance_rate, 6)) # convert to seconds?
 
         tandem_experiment_rate = corrected_tandem_experiment_rate = unquantum_effect_ratio = '-'
         if self.start_measurement3:
@@ -2339,8 +2339,8 @@ class App(QtGui.QMainWindow):
             'background_coincidence_rate': str(round(self.background_rate, 6)), # convert to seconds?
             'calculated_background_radiation_rate': calculated_background_radiation_rate,
             'calculated_background_coincidence_rate': calculated_background_coincidence_rate,
-            'change_rate': change_rate,
-            'corrected_change_rate': corrected_change_rate,
+            'chance_rate': chance_rate,
+            'corrected_chance_rate': corrected_chance_rate,
             'tandem_experiment_rate': tandem_experiment_rate,
             'corrected_tandem_experiment_rate': corrected_tandem_experiment_rate,
             'unquantum_effect_ratio': unquantum_effect_ratio
@@ -2423,7 +2423,7 @@ class App(QtGui.QMainWindow):
     def set_singles_rate_detector_b(self):
         self.total_singles_rate_detector_b = (self.total_single_clicks_detector_b / self.total_experiment_time) if self.total_experiment_time > 0 else 0
 
-    # Change rate and experiment rates are used both the true coincidence test and
+    # Chance rate and experiment rates are used both the true coincidence test and
     # the unquantum measurement
     def set_chance_rate(self):
         # * 2 for two nanoseconds
