@@ -236,6 +236,8 @@ def main():
 
             multiprocessing_arguments["headless_mode"] = application_configuration["headless_mode"]
 
+            multiprocessing_arguments["pulse_source"] = application_configuration["pulse_source"]
+
             multiprocessing_arguments["chance_rate"] = application_configuration["chance_rate"]
 
             multiprocessing_arguments["background_rate"] = application_configuration["background_rate"]

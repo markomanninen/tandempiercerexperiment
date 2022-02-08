@@ -107,7 +107,7 @@ def simulator_worker(arguments, verbose):
 
     start_time = tm()
 
-    execution_time = start_time + arguments["execution_time"]
+    execution_time = (start_time + arguments["execution_time"]) if arguments["execution_time"] > 0 else 0
 
     try:
 
@@ -144,7 +144,7 @@ def simulator_worker(arguments, verbose):
                 signal_spectrum_acquire_event.set()
 
                 # If execution time has exceeded, stop loops and application.
-                if tm() > execution_time:
+                if execution_time > 0 and tm() > execution_time:
                     print("Execution time (%ss) of the experiment has ended." % arguments["execution_time"])
                     settings["sub_loop"] = False
                     settings["main_loop"] = False
@@ -186,7 +186,7 @@ def _playback_worker(playback_buffers, arguments, settings, verbose):
 
     start_time = tm()
 
-    execution_time = start_time + arguments["execution_time"]
+    execution_time = (start_time + arguments["execution_time"]) if arguments["execution_time"] > 0 else 0
 
     while settings["sub_loop"]:
 
@@ -206,7 +206,7 @@ def _playback_worker(playback_buffers, arguments, settings, verbose):
                 signal_spectrum_acquire_value, signal_spectrum_acquire_event)
 
             # If execution time has exceeded, stop loops and application.
-            if tm() > execution_time:
+            if execution_time > 0 and tm() > execution_time:
                 print("Execution time (%ss) of the experiment has ended." % arguments["execution_time"])
                 settings["sub_loop"] = False
                 settings["main_loop"] = False
@@ -304,7 +304,7 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
 
     start_time = tm()
 
-    execution_time = start_time + arguments["execution_time"]
+    execution_time = (start_time + arguments["execution_time"]) if arguments["execution_time"] > 0 else 0
 
     while settings["main_loop"]:
 
@@ -369,10 +369,6 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                     ps.start_capture(sleep_time = settings["picoscope"]["sleep_time"])
 
                     buffers = list(ps.get_buffers())
-
-                    # Get recording flag from application (initialized from argument parser).
-                    if False:
-                        write_buffers(buffers, csv_data_file)
 
                     trigger_channel = None if block_mode_trigger_settings["enabled"] == 0 else block_mode_trigger_settings["channel"]
                     sca_a_pulse_count, sca_b_pulse_count = process_buffers(buffers, settings, arguments, trigger_channel,
@@ -444,7 +440,7 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                     ps.init_capture()
 
                     # If execution time has exceeded, stop loops and application.
-                    if tm() > execution_time:
+                    if execution_time > 0 and tm() > execution_time:
                         print("Execution time (%ss) of the experiment has ended." % arguments["execution_time"])
                         settings["sub_loop"] = False
                         settings["main_loop"] = False
