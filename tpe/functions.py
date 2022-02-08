@@ -218,7 +218,6 @@ def load_measurement_values(experiment_dir, measurement_file, measurement_header
             measurement_file
         )
         if os.path.exists(results_json):
-            print(results_json)
             try:
                 with open(results_json) as file:
                     results = json.load(file)
