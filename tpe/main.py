@@ -210,6 +210,7 @@ def main():
 
             application_configuration["store_waveforms"] = args.store_waveforms
             application_configuration["store_waveforms_channels"] = args.store_waveforms_channels
+            application_configuration["store_statistics"] = args.store_statistics
             application_configuration["execution_time"] = args.execution_time
 
             arguments = [
@@ -245,6 +246,8 @@ def main():
             multiprocessing_arguments["store_waveforms"] = application_configuration["store_waveforms"]
 
             multiprocessing_arguments["store_waveforms_channels"] = application_configuration["store_waveforms_channels"]
+
+            multiprocessing_arguments["store_statistics"] = application_configuration["store_statistics"]
 
             multiprocessing_arguments["execution_time"] = application_configuration["execution_time"]
 

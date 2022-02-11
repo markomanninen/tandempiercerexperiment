@@ -146,6 +146,9 @@ def create_config():
     # Automatic halt for execution of the experiment. 0 means no interruption, quiting must be done from the application or ctrl-c from console. 3600 means an hour of execution, then halting it.
     data["execution_time"] = 0
 
+    # Store statistics.
+    data["store_statistics"] = False
+
     # Experiment step configurations.
 
     steps = {}
@@ -181,6 +184,9 @@ def create_config():
 
     }
     steps[1.3] = {
+
+    }
+    steps[1.4] = {
 
     }
     steps[2] = {

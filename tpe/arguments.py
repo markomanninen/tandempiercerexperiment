@@ -92,11 +92,17 @@ def load_args(default_config):
         default = default_config["store_waveforms_channels"],
         help = "When store_waveforms from buffers to csv files is used, this option defines what channels are stored to the file. Options are some of these characters: ABCD. Default is: %s" % default_config["store_waveforms_channels"])
 
+    parser.add_argument("--store_statistics",
+        dest = "store_statistics",
+        default = default_config["store_statistics"],
+        type = boolean_type,
+        help = "Store measurement statistics to csv files. Default is: %s" % default_config["store_statistics"])
+
     parser.add_argument("--execution_time",
         dest = "execution_time",
         default = default_config["execution_time"],
         type = int_type,
-        help = "Automatic halt for execution of the experiment. Options are: 0=for non-interrupting execution of the expriment, else define time in seconds, for example 3600 for an hour. Default is: %s seconds." % default_config["execution_time"])
+        help = "Automatic halt for execution of the experiment. Options are: 0=for non-interrupting execution of the experiment, else define time in seconds, for example 3600 for an hour. Default is: %s seconds." % default_config["execution_time"])
 
     parser.add_argument("--pulse_source",
         dest = "pulse_source",
