@@ -25,10 +25,11 @@ colorama.init()
 # Make random number more random with the seed.
 np.random.seed(19680801)
 
-def process_buffers(buffers, settings, time_window, trigger_channel,
+def process_buffers(buffers, settings, arguments, trigger_channel,
                     signal_spectrum_acquire_value, signal_spectrum_acquire_event):
 
     time_differences = [] #(np.random.normal(size=1)[0] * 25)
+    pulse_heights = [] #(np.random.normal(size=1)[0] * 25)
 
     #bcl = list(map(lambda x: baseline_correction_and_limit(*x), zip(buffers, settings["spectrum_low_limits"], settings["spectrum_high_limits"])))
     bcl = buffers
@@ -54,6 +55,7 @@ def process_buffers(buffers, settings, time_window, trigger_channel,
         for i in a1:
             for j in a2:
                 time_differences.append((i-j)) # 2ns!
+                pulse_heights.append((max(bcl[2]), max(bcl[3])))
                 if bcl[2][i] == 0 or bcl[3][j] == 0:
                     pass
                     # Debug possible empty raw data channels, even if they were triggered.
@@ -69,7 +71,7 @@ def process_buffers(buffers, settings, time_window, trigger_channel,
     # Auto trigger setting forces trigger to release in Picoscope after certain amount of time,
     # if there was no activity, and PS will try again.
     # Thus, data may be empty and it will be unnecessary to send it to GUI.
-    if l1 > 0 or l2 > 0:
+    if (l1 > 0 or l2 > 0) and not arguments["headless_mode"]:
         #print("valid","max", (max(bcl[0]), max(bcl[1]), max(bcl[2]), max(bcl[3])))
 
         # Pass raw signal data without any correction and limits to the plotter and
@@ -88,7 +90,7 @@ def process_buffers(buffers, settings, time_window, trigger_channel,
         )
         signal_spectrum_acquire_event.set()
 
-    return (l1, l2)
+    return (l1, l2, time_differences, pulse_heights)
 
 # Simulator worker for pulse rate meter, channel line graph,
 # time difference and detector spectrum histograms.
@@ -202,7 +204,7 @@ def _playback_worker(playback_buffers, arguments, settings, verbose):
             # it for more robust and scalable version of using playback files...
             buffers = work_buffers.pop(0)
 
-            process_buffers(buffers, settings, arguments["time_window"], None,
+            process_buffers(buffers, settings, arguments, None,
                 signal_spectrum_acquire_value, signal_spectrum_acquire_event)
 
             # If execution time has exceeded, stop loops and application.
@@ -296,15 +298,12 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
 
     settings = settings_acquire_value["value"]
 
-    rate_a, rate_b, rate_ab, counts_max_a, counts_max_b, counts_min_a, counts_min_b, rate_a_avg, rate_b_avg, rate_ab_avg = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-
-    rate_count = 0
-
     csv_waveform_file = os.path.join(arguments["experiments_dir"], arguments["experiment_dir"], "waveform.csv")
+    csv_statistics_file = os.path.join(arguments["experiments_dir"], arguments["experiment_dir"], "statistics.csv")
 
-    start_time = tm()
-
-    execution_time = (start_time + arguments["execution_time"]) if arguments["execution_time"] > 0 else 0
+    pulse_source = arguments["pulse_source"]
+    chance_rate = arguments["chance_rate"]
+    background_rate = arguments["background_rate"]
 
     while settings["main_loop"]:
 
@@ -318,12 +317,19 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
             block_mode_trigger_settings = settings["picoscope"]["block_mode_trigger_settings"]
 
             init = True
+
             timebase_n = 0
+
             start_channel = block_mode_trigger_settings["channel"]
-            pulse_source = arguments["pulse_source"]
-            chance_rate = arguments["chance_rate"]
-            background_rate = arguments["background_rate"]
+
+            rate_a, rate_b, rate_ab, counts_max_a, counts_max_b, counts_min_a, counts_min_b, rate_a_avg, rate_b_avg, rate_ab_avg = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+            rate_count = 0
+
             start_time = tm()
+
+            execution_time = (start_time + arguments["execution_time"]) if arguments["execution_time"] > 0 else 0
+
             coincidence_count = 0
 
             if picoscope_mode == "stream":
@@ -348,7 +354,7 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                 timebase_conversion = 1 / buffer_length_ns
 
                 print("\n")
-                console_line = "Source: %s Timebase: %s Time window: %s Buffer length: %s (s) Time conversion: %d"
+                console_line = "Source: %s Timebase: %s Time window: %sns Buffer length: %ss Time conversion: 1/%d"
                 print(console_line % (pulse_source, timebase_n, arguments["time_window"], buffer_length_ns, timebase_conversion))
                 print("\n")
             else:
@@ -361,6 +367,8 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                 settings["main_loop"] = False
                 settings["sub_loop"] = False
 
+            td, ph1, ph2 = (0, 0, 0)
+
             while settings["sub_loop"]:
 
                 # It is possible to pause data retrieval from the application menu.
@@ -371,7 +379,7 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                     buffers = list(ps.get_buffers())
 
                     trigger_channel = None if block_mode_trigger_settings["enabled"] == 0 else block_mode_trigger_settings["channel"]
-                    sca_a_pulse_count, sca_b_pulse_count = process_buffers(buffers, settings, arguments, trigger_channel,
+                    sca_a_pulse_count, sca_b_pulse_count, time_differences, pulse_heights = process_buffers(buffers, settings, arguments, trigger_channel,
                         signal_spectrum_acquire_value, signal_spectrum_acquire_event)
 
                     # Get recording flag from application (initialized from argument parser).
@@ -426,21 +434,76 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                     # the calculation will be biassed. But for high rate constant signals, that should be ok.
                     # Question for Tandem Experiment is, if there are gamma peaks coming once in every 20 microseconds so that
                     # the rate calculated here is correct?
-                    console_line = "Samples: %s/%ss Elapsed: %ss | A rate: %s/s (min/max: %s/%s) B rate: %s/s (min/max: %s/%s) AB avg rate: %s/s Chance rate: %s (500ns) Coincidence rate: %s         \033[A"
+                    console_line = "Samples: %s/%ss Elapsed: %ss | A-rate: %s/s (cnt/min/max: %s/%s/%s) | B-rate: %s/s (cnt/min/max: %s/%s/%s) | Chance rate: %s (500ns) | Coincidence rate elps/smpl: %s/%s (cnt: %s) | %s-%s-%s \033[A"
 
-                    elapsed_time = tm() - start_time
-                    print(console_line % (rate_count, round(buffer_length_ns * rate_count, 1), round(elapsed_time, 1), round(rate_a_avg, 1), counts_min_a, counts_max_a, round(rate_b_avg, 1), counts_min_b, counts_max_b, round(rate_ab_avg, 1), round(rate_a_avg * rate_b_avg * 5*10**-7, 6), round(coincidence_count / elapsed_time, 6)))
-                    #print("A: %s/s B: %s/s AB: %s/s         \033[A" % (rate_a_avg, rate_b_avg, rate_ab_avg))
+                    time_now = tm()
 
+                    elapsed_time = time_now - start_time
+
+                    td = td if len(time_differences) < 1 else time_differences[0]
+                    ph1 = ph1 if len(pulse_heights) < 1 else pulse_heights[0][0]
+                    ph2 = ph2 if len(pulse_heights) < 1 else pulse_heights[0][1]
+
+                    data = (
+                        rate_count,
+                        round(buffer_length_ns * rate_count, 1),
+                        round(elapsed_time, 1),
+                        round(rate_a_avg, 1),
+                        rate_a,
+                        counts_min_a,
+                        counts_max_a,
+                        round(rate_b_avg, 1),
+                        rate_b,
+                        counts_min_b,
+                        counts_max_b,
+                        round(rate_a_avg * rate_b_avg * 5*10**-7, 6),
+                        round(coincidence_count / elapsed_time, 6),
+                        round(coincidence_count / (buffer_length_ns * rate_count), 6),
+                        coincidence_count,
+                        td,
+                        ph1,
+                        ph2
+                    )
+
+                    print(console_line % data)
+
+                    if arguments["store_statistics"]:
+                        data = (
+                            time_now,
+                            elapsed_time,
+                            sca_a_pulse_count,
+                            sca_b_pulse_count,
+                            rate_a,
+                            rate_b,
+                            rate_a_avg,
+                            rate_b_avg,
+                            sca_a_pulse_count * sca_b_pulse_count,
+                            coincidence_count,
+                            coincidence_count / elapsed_time,
+                            coincidence_count / (buffer_length_ns * rate_count),
+                            0 if len(time_differences) < 1 else time_differences[0],
+                            0 if len(pulse_heights) < 1 else pulse_heights[0][0],
+                            0 if len(pulse_heights) < 1 else pulse_heights[0][1],
+                            timebase_conversion * coincidence_count / rate_count,
+                            rate_count,
+                            buffer_length_ns * rate_count,
+                            block_mode_trigger_settings["channel"]
+                        )
+                        f = open(csv_statistics_file, "a")
+                        print(*data, sep = ";", file = f)
+                        f.close()
                     # If single channel trigger is set to alternate,
                     # swap the trigger channel between 0 and 1.
-                    if block_mode_trigger_settings["enabled"] == 1 and block_mode_trigger_settings["alternate_channel"] == True:
+                    if block_mode_trigger_settings["alternate_channel"] == True:
                         block_mode_trigger_settings["channel"] = 1 if block_mode_trigger_settings["channel"] == 0 else 0
-                        ps.set_trigger(**block_mode_trigger_settings)
+                        # Revoke trigger only if it is enabled.
+                        if block_mode_trigger_settings["enabled"] == 1:
+                            ps.set_trigger(**block_mode_trigger_settings)
                     ps.init_capture()
 
                     # If execution time has exceeded, stop loops and application.
                     if execution_time > 0 and tm() > execution_time:
+                        print("\n")
                         print("Execution time (%ss) of the experiment has ended." % arguments["execution_time"])
                         settings["sub_loop"] = False
                         settings["main_loop"] = False
