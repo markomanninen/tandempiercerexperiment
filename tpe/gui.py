@@ -18,6 +18,8 @@ from collections import deque
 from . functions import baseline_correction_and_limit, \
                         raising_edges_for_raw_pulses, \
                         raising_edges_for_square_pulses
+from pandas import Series
+from scipy.signal import find_peaks
 
 # To prevent logaritmic scale error in spectrum plot.
 np.seterr(divide = 'ignore')
@@ -1335,12 +1337,22 @@ class LegendItem(pg.LegendItem):
             self.plots[index]['plot'].hide()
             if 'region' in self.plots[index]:
                 self.plots[index]['region'].hide()
+            if 'fit' in self.plots[index]:
+                self.plots[index]['fit'].hide()
+            if 'lines' in self.plots[index]:
+                for line in self.plots[index]['lines']:
+                    line.hide()
             self.plots[index]['show'] = 0
 
         else:
             self.plots[index]['plot'].show()
             if 'region' in self.plots[index]:
                 self.plots[index]['region'].show()
+            if 'fit' in self.plots[index]:
+                self.plots[index]['fit'].show()
+            if 'lines' in self.plots[index]:
+                for line in self.plots[index]['lines']:
+                    line.show()
             self.plots[index]['show'] = 1
 
 # Graphical user interface for the application
@@ -1451,29 +1463,31 @@ class App(QtGui.QMainWindow):
 
         self.rate_timeline = 120
 
-        scale = ' - lin(y)'
+        self.logarithmic_scale_threshold = 10
+        #self.logarithmic_scale = ' - lin(y)'
+        self.logarithmic_scale = ''
         # Natural logarithm.
         if self.logarithmic_y_scale == 1:
-            scale = ' - log<sub style="font-size:14pt">e</sub>(y)'
+            self.logarithmic_scale = ' - log<sub style="font-size:14pt">e</sub>(y)'
         # Logarithm 2.
         elif self.logarithmic_y_scale == 2:
-            scale = ' - log<sub style="font-size:14pt">2</sub>(y)'
+            self.logarithmic_scale = ' - log<sub style="font-size:14pt">2</sub>(y)'
         # Logarithm 10.
         elif self.logarithmic_y_scale == 3:
-            scale = ' - log<sub style="font-size:14pt">10</sub>(y)'
+            self.logarithmic_scale = ' - log<sub style="font-size:14pt">10</sub>(y)'
         # Amplitude spectrum.
         elif self.logarithmic_y_scale == 4:
-            scale = ' - abs(fft(y))'
+            self.logarithmic_scale = ' - abs(fft(y))'
         # Power spectrum.
         elif self.logarithmic_y_scale == 5:
-            scale = ' - abs(fft(y))<sup style="font-size:14pt">2</sup>'
+            self.logarithmic_scale = ' - abs(fft(y))<sup style="font-size:14pt">2</sup>'
         # Phase spectrum.
         elif self.logarithmic_y_scale == 6:
-            scale = ' - angle(fft(y))'
+            self.logarithmic_scale = ' - angle(fft(y))'
 
-        self.signal_spectrum_plot_left_label = "Channel A counts (%s)" + (scale if self.logarithmic_y_scale else '')
-        self.signal_spectrum_plot_right_label = "Channel B counts (%s)" + (scale if self.logarithmic_y_scale else '')
-        self.coincidence_count_graph_label = "Coincidence counts (%s)" + (scale if self.logarithmic_y_scale else '')
+        self.signal_spectrum_plot_left_label = "Channel A counts (%s)%s"
+        self.signal_spectrum_plot_right_label = "Channel B counts (%s)%s"
+        self.coincidence_count_graph_label = "Coincidence counts (%s)%s"
         self.spectrum_plot_bottom_label = "Volts (A & B)"
 
         self.timeline_bottom_label = 'Time elapsed (%s)'
@@ -1603,8 +1617,8 @@ class App(QtGui.QMainWindow):
         self.signal_spectrum_plot = self.canvas.addPlot(colspan = 1)
 
         self.signal_spectrum_plot.setTitle('Pulse height spectrum', **self.plot_title_style)
-        self.signal_spectrum_plot.setLabel('left', self.signal_spectrum_plot_left_label % 0, **self.plot_label_style)
-        self.signal_spectrum_plot.setLabel('right', self.signal_spectrum_plot_right_label % 0, **self.plot_label_style)
+        self.signal_spectrum_plot.setLabel('left', self.signal_spectrum_plot_left_label % (0, self.logarithmic_scale), **self.plot_label_style)
+        self.signal_spectrum_plot.setLabel('right', self.signal_spectrum_plot_right_label % (0, self.logarithmic_scale), **self.plot_label_style)
         self.signal_spectrum_plot.setLabel('bottom', self.spectrum_plot_bottom_label, **self.plot_label_style)
 
         self.time_difference_spectrum_plot = self.canvas.addPlot(colspan = 1)
@@ -1632,22 +1646,40 @@ class App(QtGui.QMainWindow):
         self.init_spectrum_histograms()
 
         # Signal spectrum plots.
+        # y, x = np.histogram(
+        #     self.signal_spectrum_data_a,
+        #     bins = np.linspace(0, VOLTAGE_RANGES[self.settings_acquire_value['value']['picoscope']['voltage_range'][2]], self.bin_count)
+        # )
+
+        self.lines_a = []
+        self.lines_b = []
+
+        self.spectra_bin_count = 64
         y, x = np.histogram(
             self.signal_spectrum_data_a,
-            bins = np.linspace(0, VOLTAGE_RANGES[self.settings_acquire_value['value']['picoscope']['voltage_range'][2]], self.bin_count)
+            bins = np.linspace(0, VOLTAGE_RANGES[self.settings_acquire_value['value']['picoscope']['voltage_range'][2]], self.spectra_bin_count)
         )
+
+        #x = np.zeros(len(self.signal_spectrum_data_a))
+        #y = self.signal_spectrum_data_a
 
         self.signal_spectrum_plot_a = self.signal_spectrum_plot.plot(x, y,
             name = 'A',
             stepMode = True,
             fillLevel = 0,
             brush = 'r',
-            pen = pg.mkPen('r', width=0, style=None)
+            pen = pg.mkPen('r', width=0, style=None),
+        )
+
+        self.orange_color = (217, 83, 25)
+        self.histogramplotp_curve_a = self.signal_spectrum_plot.plot(
+            pen = pg.mkPen(self.orange_color, width=0, style=None),
+            brush = self.orange_color
         )
 
         y, x = np.histogram(
             self.signal_spectrum_data_b,
-            bins = np.linspace(0, VOLTAGE_RANGES[self.settings_acquire_value['value']['picoscope']['voltage_range'][3]], self.bin_count)
+            bins = np.linspace(0, VOLTAGE_RANGES[self.settings_acquire_value['value']['picoscope']['voltage_range'][3]], self.spectra_bin_count)
         )
 
         self.signal_spectrum_plot_b = self.signal_spectrum_plot.plot(x, y,
@@ -1660,13 +1692,18 @@ class App(QtGui.QMainWindow):
 
         self.signal_spectrum_plot_b.setAlpha(0.40, False)
 
-        legend = LegendItem((80, 60), offset=(15,15))
+        self.histogramplotp_curve_b = self.signal_spectrum_plot.plot(
+            pen = pg.mkPen('g', width=0, style=None),
+            brush = 'g'
+        )
+
+        legend = LegendItem((80, 60), offset=(15, 15))
         legend.setParentItem(self.signal_spectrum_plot.getViewBox())
         self.signal_spectrum_plot.legend = legend
         # TODO: could be automatic without need of specifying plots in list...
         legend.addPlotsForLegends([
-            {'plot': self.signal_spectrum_plot_a, 'show': 1, 'name': 'A', 'region': self.signal_spectrum_region_a},
-            {'plot': self.signal_spectrum_plot_b, 'show': 1, 'name': 'B', 'region': self.signal_spectrum_region_b}
+            {'plot': self.signal_spectrum_plot_a, 'show': 1, 'name': 'A', 'region': self.signal_spectrum_region_a, 'fit': self.histogramplotp_curve_a, 'lines': self.lines_a},
+            {'plot': self.signal_spectrum_plot_b, 'show': 1, 'name': 'B', 'region': self.signal_spectrum_region_b, 'fit': self.histogramplotp_curve_b, 'lines': self.lines_b}
         ])
 
         # Time difference spectrum plots.
@@ -1698,7 +1735,7 @@ class App(QtGui.QMainWindow):
 
         self.time_difference_spectrum_plot_b.setAlpha(0.40, False)
 
-        legend = LegendItem((80, 60), offset=(15,15))
+        legend = LegendItem((80, 60), offset=(15, 15))
         legend.setParentItem(self.time_difference_spectrum_plot.getViewBox())
         self.time_difference_spectrum_plot.legend = legend
         # TODO: could be automatic without need of specifying plots in list...
@@ -1762,7 +1799,7 @@ class App(QtGui.QMainWindow):
         self.time_difference_spectrum_data_a = deque([], maxlen=queue_size)
         self.time_difference_spectrum_data_b = deque([], maxlen=queue_size)
 
-        self.time_difference_spectrum_plot.setLabel('right', self.coincidence_count_graph_label % 0, **self.plot_label_style)
+        self.time_difference_spectrum_plot.setLabel('right', self.coincidence_count_graph_label % (0, self.logarithmic_scale), **self.plot_label_style)
 
     def clear_time_difference_histograms(self):
         try:
@@ -1906,7 +1943,7 @@ class App(QtGui.QMainWindow):
         y, x = np.histogram(self.histogram_data, bins = np.linspace(-self.time_window, self.time_window, self.bin_count))
         self.histogramplotp = self.histogramplot.plot(x, y, stepMode = True, fillLevel = 0, brush = (0, 0, 255, 150))
 
-        self.histogramplot.setLabel('left', self.coincidence_count_graph_label % 0, **self.plot_label_style)
+        self.histogramplot.setLabel('left', self.coincidence_count_graph_label % (0, self.logarithmic_scale), **self.plot_label_style)
 
 
     def init_time_difference_scatter(self):
@@ -2666,7 +2703,7 @@ class App(QtGui.QMainWindow):
         event.accept()
 
     def log(self, x, y, voltage_range, voltage_range_start = 0):
-        if self.logarithmic_y_scale == 0:
+        if self.logarithmic_y_scale == 0 or max(y) < self.logarithmic_scale_threshold:
             return x, y
         elif self.logarithmic_y_scale == 1:
             # Data requires a clip to handle zero point.
@@ -2800,6 +2837,9 @@ class App(QtGui.QMainWindow):
 
                 self.channels_pulse_height_value_data.append((len(maxes[0]), len(maxes[1]), time_differences_n))
 
+                def fit_function(x, *coeffs):
+                    return np.polyval(coeffs, x)
+
                 if len(maxes[0]) > 0:
 
                     self.signals_data[0] = data[0]
@@ -2808,12 +2848,50 @@ class App(QtGui.QMainWindow):
                     new_maxes = [(voltage_range_a * m / self.spectrum_time_window) for m in maxes[0]]
                     self.signal_spectrum_data_a.extendleft(new_maxes)
 
-                    y, x = np.histogram(self.signal_spectrum_data_a, bins = np.linspace(0, voltage_range_a, self.bin_count))
+                    #y, x = np.histogram(self.signal_spectrum_data_a, bins = np.linspace(0, voltage_range_a, self.bin_count))
+                    y, x = np.histogram(self.signal_spectrum_data_a, bins = np.linspace(0, voltage_range_a, self.spectra_bin_count))
                     if self.logarithmic_y_scale == 0 or len(self.signal_spectrum_data_a) < 2:
                         self.signal_spectrum_plot_a.setData(x, y)
                     else:
                         self.signal_spectrum_plot_a.setData(*self.log(x, y, voltage_range_a))
-                    self.signal_spectrum_plot.setLabel('left', self.signal_spectrum_plot_left_label % (self.signal_spectrum_clicks_detector_a))
+                    self.signal_spectrum_plot.setLabel('left', self.signal_spectrum_plot_left_label % (self.signal_spectrum_clicks_detector_a, self.logarithmic_scale if max(y) > self.logarithmic_scale_threshold else ""))
+
+                    if True:
+                        centers = x[:-1] + np.diff(x)[0] / 2
+                        norm_y = y / y.sum()
+                        norm_y_ma = Series(norm_y).rolling(1, center=True).mean().values * ((max(y) * 20) if max(y) < self.logarithmic_scale_threshold else (max(y)/2))
+                        self.histogramplotp_curve_a.setData(centers, norm_y_ma)
+
+                    if False:
+                        peaks = find_peaks(norm_y_ma, width = 2, distance = 2, threshold = 0.2)[0]
+
+                        for i, peak in enumerate(peaks[:5]):
+                            if i < len(self.lines_a)-1:
+                                self.lines_a[i].setValue(centers[peak])
+                                self.lines_a[i].setZValue(9999)
+                            else:
+                                center_line = pg.InfiniteLine(
+                                    pos=centers[peak],
+                                    angle=90,
+                                    pen=self.orange_color,
+                                    movable=False
+                                )
+                                self.lines_a.append(center_line)
+                                self.signal_spectrum_plot.addItem(center_line)
+
+                    #def f(x, N, a):
+                        #return N * x ** a
+
+                    #def f(x, *coeffs):
+                    #    return np.polyval(coeffs, x)
+
+                    # Optimize.
+                    #popt, pcov = scipy.optimize.curve_fit(fit_function, x[:-1], y, p0 = np.ones(12))
+                    #self.histogramplotp_curve_a.setData(x[:-1], fit_function(x[:-1], *popt))
+
+                    #perr = np.sqrt(np.diag(pcov))
+                    #self.histogramplotp_curve_a.setData(x[:-1], popt[0] * x[:-1] ** popt[1])
+                    #self.histogramplotp_curve_b.setData(x[:-1], (popt[0]+perr[1]) * x[:-1] ** (popt[1]+perr[1]))
 
                 if len(maxes[1]) > 0:
 
@@ -2823,12 +2901,35 @@ class App(QtGui.QMainWindow):
                     new_maxes = [(voltage_range_b * m / self.spectrum_time_window) for m in maxes[1]]
                     self.signal_spectrum_data_b.extendleft(new_maxes)
 
-                    y, x = np.histogram(self.signal_spectrum_data_b, bins = np.linspace(0, voltage_range_b, self.bin_count))
+                    y, x = np.histogram(self.signal_spectrum_data_b, bins = np.linspace(0, voltage_range_b, self.spectra_bin_count))
                     if self.logarithmic_y_scale == 0 or len(self.signal_spectrum_data_b) < 2:
                         self.signal_spectrum_plot_b.setData(x, y)
                     else:
                         self.signal_spectrum_plot_b.setData(*self.log(x, y, voltage_range_b))
-                    self.signal_spectrum_plot.setLabel('right', self.signal_spectrum_plot_right_label % (self.signal_spectrum_clicks_detector_b))
+                    self.signal_spectrum_plot.setLabel('right', self.signal_spectrum_plot_right_label % (self.signal_spectrum_clicks_detector_b, self.logarithmic_scale if max(y) > self.logarithmic_scale_threshold else ""))
+
+                    if True:
+                        centers = x[:-1] + np.diff(x)[0] / 2
+                        norm_y = y / y.sum()
+                        norm_y_ma = Series(norm_y).rolling(1, center=True).mean().values * ((max(y) * 20) if max(y) < self.logarithmic_scale_threshold else (max(y)/2))
+                        self.histogramplotp_curve_b.setData(centers, norm_y_ma)
+
+                    if False:
+                        peaks = find_peaks(norm_y_ma, width = 2, distance = 2, threshold = 0.2)[0]
+
+                        for i, peak in enumerate(peaks[:5]):
+                            if i < len(self.lines_b)-1:
+                                self.lines_b[i].setValue(centers[peak])
+                                self.lines_a[i].setZValue(9999)
+                            else:
+                                center_line = pg.InfiniteLine(
+                                    pos=centers[peak],
+                                    angle=90,
+                                    pen='g',
+                                    movable=False
+                                )
+                                self.lines_b.append(center_line)
+                                self.signal_spectrum_plot.addItem(center_line)
 
                 if len(maxes[0]) > 0 or len(maxes[1]) > 0:
                     if self.signal and self.signal.update_graph:
@@ -2842,7 +2943,7 @@ class App(QtGui.QMainWindow):
                     # COINCIDENCE SPECTRUM A
                     new_maxes = [(voltage_range_a * x / self.spectrum_time_window) for x in maxes[0]]
                     self.time_difference_spectrum_data_a.extendleft(new_maxes)
-                    y, x = np.histogram(self.time_difference_spectrum_data_a, bins = np.linspace(0, voltage_range_a, self.bin_count))
+                    y, x = np.histogram(self.time_difference_spectrum_data_a, bins = np.linspace(0, voltage_range_a, self.spectra_bin_count))
                     if self.logarithmic_y_scale == 0 or len(self.time_difference_spectrum_data_a) < 2:
                         self.time_difference_spectrum_plot_a.setData(x, y)
                     else:
@@ -2852,13 +2953,13 @@ class App(QtGui.QMainWindow):
                     # COINCIDENCE SPECTRUM B
                     new_maxes = [(voltage_range_b * x / self.spectrum_time_window) for x in maxes[1]]
                     self.time_difference_spectrum_data_b.extendleft(new_maxes)
-                    y, x = np.histogram(self.time_difference_spectrum_data_b, bins = np.linspace(0, voltage_range_b, self.bin_count))
+                    y, x = np.histogram(self.time_difference_spectrum_data_b, bins = np.linspace(0, voltage_range_b, self.spectra_bin_count))
                     if self.logarithmic_y_scale == 0 or len(self.time_difference_spectrum_data_b) < 2:
                         self.time_difference_spectrum_plot_b.setData(x, y)
                     else:
                         self.time_difference_spectrum_plot_b.setData(*self.log(x, y, voltage_range_b))
 
-                    self.time_difference_spectrum_plot.setLabel('right', self.coincidence_count_graph_label % (self.signal_spectrum_clicks_coincidences))
+                    self.time_difference_spectrum_plot.setLabel('right', self.coincidence_count_graph_label % (self.signal_spectrum_clicks_coincidences, self.logarithmic_scale if max(y) > self.logarithmic_scale_threshold else ""))
 
                     # TIME DIFFERENCE HISTOGRAM
                     self.histogram_data.extend(time_differences)
@@ -2867,7 +2968,8 @@ class App(QtGui.QMainWindow):
                         self.histogramplotp.setData(x, y)
                     else:
                         self.histogramplotp.setData(*self.log(x, y, self.time_window))
-                    self.histogramplot.setLabel('left', self.coincidence_count_graph_label % (self.signal_spectrum_clicks_coincidences))
+
+                    self.histogramplot.setLabel('left', self.coincidence_count_graph_label % (self.signal_spectrum_clicks_coincidences, self.logarithmic_scale if max(y) > self.logarithmic_scale_threshold else ""))
 
                     # Adding spots to the scatter plot.
                     scatter = pg.ScatterPlotItem(pxMode=False)
