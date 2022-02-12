@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
+import json
 import os, subprocess
 from time import sleep
 from datetime import datetime
@@ -90,7 +91,6 @@ def main():
                     "regions.json"
                 )
                 if os.path.exists(region_config_name):
-                    import json
                     region_config = json.load(region_config_name)
                     # Assuming here that the raw pulse channels are 2 and 3.
                     # Region config has both full and gamma regions. Index 0 corresponds to Channel A which raw pulse is in step_config index 2. 1 corresponds to 3 similarly.
@@ -122,14 +122,20 @@ def main():
             voltage_range = config["voltage_range"]
             sca_module_settings = step_config["sca_module_settings"]
             advanced_trigger_settings = step_config["advanced_trigger_settings"]
+            advanced_trigger_settings["enabled"] = args.advanced_trigger
+
             block_mode_trigger_settings = step_config["simple_trigger_settings"]
+            block_mode_trigger_settings["enabled"] = args.simple_trigger
+            block_mode_trigger_settings["alternate_channel"] = args.simple_trigger_alternate == 1
+            block_mode_trigger_settings["channel"] = args.simple_trigger_channel
+
             block_mode_timebase_settings = {
-                "timebase_n": step_config["timebase_n"],
-                "pre_trigger_samples": step_config["pre_trigger_samples"],
-                "post_trigger_samples": step_config["post_trigger_samples"]
+                "timebase_n": step_config["timebase_n"] if args.timebase == 0 else args.timebase,
+                "pre_trigger_samples": step_config["pre_trigger_samples"] if args.pre_trigger_samples == 0 else args.pre_trigger_samples,
+                "post_trigger_samples": step_config["post_trigger_samples"] if args.post_trigger_samples == 0 else args.post_trigger_samples
             }
 
-            time_window = (step_config["pre_trigger_samples"] + step_config["post_trigger_samples"])
+            time_window = (block_mode_timebase_settings["pre_trigger_samples"] + block_mode_timebase_settings["post_trigger_samples"])
 
             picoscope_mode = args.picoscope_mode
 
@@ -196,7 +202,7 @@ def main():
             # Also, it should be enabled for each graph individually.
             application_configuration["logarithmic_y_scale"] = 3
             # Is simple or advanced trigger used?
-            application_configuration["trigger_mode"] = "simple" if block_mode_trigger_settings["enabled"] == 1 else "advanced" if advanced_trigger_settings["enabled"] else "none"
+            application_configuration["trigger_mode"] = "simple" if block_mode_trigger_settings["enabled"] == 1 else ("advanced" if advanced_trigger_settings["enabled"] == 1 else "none")
             # Which channels are triggered?
             trigger_channels = "A or B"
             if application_configuration["trigger_mode"] == "simple":
@@ -212,6 +218,7 @@ def main():
             application_configuration["store_waveforms_channels"] = args.store_waveforms_channels
             application_configuration["store_statistics"] = args.store_statistics
             application_configuration["execution_time"] = args.execution_time
+            application_configuration["pulse_detection_mode"] = args.pulse_detection_mode
 
             arguments = [
                 # Share signal spectrum dictionary between processes.
@@ -248,6 +255,8 @@ def main():
             multiprocessing_arguments["store_waveforms_channels"] = application_configuration["store_waveforms_channels"]
 
             multiprocessing_arguments["store_statistics"] = application_configuration["store_statistics"]
+
+            multiprocessing_arguments["pulse_detection_mode"] = application_configuration["pulse_detection_mode"]
 
             multiprocessing_arguments["execution_time"] = application_configuration["execution_time"]
 
@@ -294,6 +303,15 @@ def main():
             multiprocessing_arguments["settings_acquire_value"]["value"] = settings
             multiprocessing_arguments["settings_acquire_event"].set()
             multiprocessing_arguments["settings_acquire_event"].clear()
+
+            # Save configuration files.
+            file_json = os.path.join(args.experiments_dir, experiment_dir, 'application_configuration.json')
+            with open(file_json, "w") as file:
+                json.dump({key: value for key, value in application_configuration.items()}, file, sort_keys = True, indent = 4)
+
+            file_json = os.path.join(args.experiments_dir, experiment_dir, 'worker_configuration.json')
+            with open(file_json, "w") as file:
+                json.dump(settings, file, sort_keys = True, indent = 4)
 
             # Add main program and worker processes to the list.
             add_process(

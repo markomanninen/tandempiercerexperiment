@@ -37,7 +37,7 @@ def load_args(default_config):
         dest = "headless_mode",
         default = False,
         type = boolean_type,
-        help = "Headless mode to start and run application without GUI. Options are: true|false. Default is: False.")
+        help = "Headless mode to start and run application without GUI. Options are: 0 = false, 1 = true. Default is: 0.")
 
     parser.add_argument("--chance_rate",
         dest = "chance_rate",
@@ -85,7 +85,7 @@ def load_args(default_config):
         dest = "store_waveforms",
         default = default_config["store_waveforms"],
         type = int_type,
-        help = "Store waveforms from buffers to csv files. Options are: 0=disabled, 1=only when coincident  signals are found, 2=all triggered waveforms. Default is: %s" % default_config["store_waveforms"])
+        help = "Store waveforms from buffers to csv files. Options are: 0=disabled, 1=only when coincident signals are found, 2=all triggered waveforms. Default is: %s" % default_config["store_waveforms"])
 
     parser.add_argument("--store_waveforms_channels",
         dest = "store_waveforms_channels",
@@ -95,8 +95,8 @@ def load_args(default_config):
     parser.add_argument("--store_statistics",
         dest = "store_statistics",
         default = default_config["store_statistics"],
-        type = boolean_type,
-        help = "Store measurement statistics to csv files. Default is: %s" % default_config["store_statistics"])
+        type = int_type,
+        help = "Store measurement statistics to csv files. 0=disabled, 1=only when coincident pulses are found, 2=if either or both channel A and B has a pulse, 3=everything. Default is: %s" % default_config["store_statistics"])
 
     parser.add_argument("--execution_time",
         dest = "execution_time",
@@ -124,6 +124,59 @@ def load_args(default_config):
         default = "block",
         action = PicoScopeModes,
         help = "PicoScope mode for importing the data acquisition module. Options are: block, stream, None. Default is: block.")
+
+    parser.add_argument("--simple_trigger",
+        dest = "simple_trigger",
+        default = default_config["simple_trigger"],
+        type = int,
+        choices = [0, 1],
+        help = "PicoScope simple trigger. 0 = disabled, 1 = enabled. Default is: %s" % default_config["simple_trigger"])
+
+    parser.add_argument("--simple_trigger_alternate",
+        dest = "simple_trigger_alternate",
+        default = default_config["simple_trigger_alternate"],
+        type = int,
+        choices = [0, 1],
+        help = "PicoScope simple trigger. 0 = disabled, 1 = enabled. Default is: %s" % default_config["simple_trigger_alternate"])
+
+    parser.add_argument("--simple_trigger_channel",
+        dest = "simple_trigger_channel",
+        default = default_config["simple_trigger_channel"],
+        type = int,
+        choices = [0, 1, 2, 3],
+        help = "PicoScope simple trigger. 0 = sca channel zero, 1 = sca channel one. Default is: %s" % default_config["simple_trigger_channel"])
+
+    parser.add_argument("--timebase",
+        dest = "timebase",
+        default = default_config["timebase"],
+        type = int_type,
+        help = "PicoScope timebase. Values from 0 to 60000. If value is 0, then step settings is used instead. Default is: %s" % default_config["timebase"])
+
+    parser.add_argument("--pre_trigger_samples",
+        dest = "pre_trigger_samples",
+        default = default_config["pre_trigger_samples"],
+        type = int_type,
+        help = "PicoScope pre trigger sample size. Values from 0 to 6000. If value is 0, then step settings is used instead. Default is: %s" % default_config["pre_trigger_samples"])
+
+    parser.add_argument("--post_trigger_samples",
+        dest = "post_trigger_samples",
+        default = default_config["post_trigger_samples"],
+        type = int_type,
+        help = "PicoScope post trigger sample size. Values from 0 to 6000. If value is 0, then step settings is used instead. Default is: %s" % default_config["post_trigger_samples"])
+
+    parser.add_argument("--advanced_trigger",
+        dest = "advanced_trigger",
+        default = default_config["advanced_trigger"],
+        type = int,
+        choices = [0, 1],
+        help = "PicoScope advanced trigger. 0 = disabled, 1 = enabled. Default is: %s" % default_config["advanced_trigger"])
+
+    parser.add_argument("--pulse_detection_mode",
+        dest = "pulse_detection_mode",
+        default = default_config["pulse_detection_mode"],
+        type = int,
+        choices = [0, 1],
+        help = "Pulse detection mode. 0 = detect pulse from the (SCA) square wave pulse. 1 = detect pulse from the raw pulse. Default is: %s" % default_config["pulse_detection_mode"])
 
     parser.add_argument("--verbose",
         dest = "verbose",

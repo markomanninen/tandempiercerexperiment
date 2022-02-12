@@ -6,13 +6,24 @@ import json
 
 config_name = "config.json"
 
+simple_trigger = 1
+simple_trigger_alternate_channel = 0
+simple_trigger_channel = 0
+
+# When using 0, the step settings are used instead.
+timebase = 0
+pre_trigger_samples = 0
+post_trigger_samples = 0
+
+advanced_trigger = 0
+
 block_mode_simple_trigger_settings = {
     # Enable to set this trigger on. Otherwise use advanced trigger.
-    "enabled": 1,
-    "alternate_channel": True,
-    "channel": 0, # 0=A, 1=B, 2=C, 3=D
-    "threshold": 1024*16, #adc value
-    "direction": 2, # raising
+    "enabled": simple_trigger,
+    "alternate_channel": simple_trigger_alternate_channel,
+    "channel": simple_trigger_channel, # 0=A, 1=B, 2=C, 3=D
+    "threshold": 1024*16, # adc value
+    "direction": 2, # raising edge trigger
     "delay": 0,
     # With 600ms auto trigger setting we can get equal amount of triggers and data coming from both channels.
     # Value lessr than this my favor other channel.
@@ -22,7 +33,7 @@ block_mode_simple_trigger_settings = {
 # Special trigger for block mode. Triggers if either channel has a raising voltage over given threshold. By hysteresis it is possible to wait for lowering edge under given percentage until the next trigger is used. Set enabled 1, if you want to use this.
 block_mode_advanced_trigger_settings = {
     # If simple trigger is enabled, it will override this setting.
-    "enabled": 1,
+    "enabled": advanced_trigger,
     # Which one of the two channels should have OR trigger activated?
     "channels": ("A", "B"),
     # For raising edge, what is the threshold for the trigger?
@@ -147,11 +158,25 @@ def create_config():
     data["execution_time"] = 0
 
     # Store statistics.
-    data["store_statistics"] = False
+    data["store_statistics"] = 0
+
+    # Pulse detection mode. 0 = detect pulse from the (SCA) square wave pulse. 1 = detect pulse from the raw pulse.
+    data["pulse_detection_mode"] = 0
+
+    data["simple_trigger"] = simple_trigger
+    data["simple_trigger_alternate"] = simple_trigger_alternate_channel
+    data["simple_trigger_channel"] = simple_trigger_channel
+
+    data["advanced_trigger"] = advanced_trigger
+
+    data["timebase"] = timebase
+    data["pre_trigger_samples"] = pre_trigger_samples
+    data["post_trigger_samples"] = post_trigger_samples
 
     # Experiment step configurations.
 
     steps = {}
+
     steps[1] = {
         "name": "Find Gamma Spectrum",
 
@@ -180,15 +205,19 @@ def create_config():
         "streaming_mode_settings": streaming_mode_settings
 
     }
+
     steps[1.2] = {
-
+        "name": "Background detectors apart from each other",
     }
+
     steps[1.3] = {
-
+        "name": "Background detectors next to each other",
     }
+
     steps[1.4] = {
-
+        "name": "Background detector on top of each other",
     }
+
     steps[2] = {
         "name": "Measure chance rate",
 
@@ -230,6 +259,10 @@ def create_config():
         "advanced_trigger_settings": block_mode_advanced_trigger_settings,
         "sca_module_settings": sca_module_default_settings,
         "streaming_mode_settings": streaming_mode_settings
+    }
+
+    steps[5] = {
+        "name": "Measure true coincidence",
     }
 
     data["steps"] = steps

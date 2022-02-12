@@ -1390,6 +1390,8 @@ class App(QtGui.QMainWindow):
         self.playback_file = application_configuration["playback_file"]
         # SCA NIM Module settings.
         self.sca_module_settings = application_configuration["sca_module_settings"]
+        # Pulse detection mode.
+        self.pulse_detection_mode = application_configuration["pulse_detection_mode"]
 
         self.results_table = {}
 
@@ -2761,9 +2763,12 @@ class App(QtGui.QMainWindow):
 
                 if triggers[0] > 0 or triggers[1] > 0:
 
-                    if False:
+                    if self.pulse_detection_mode == 0:
                         maxes = [triggers[3], triggers[4]]
                     else:
+
+                        # TODO: use get_max_heights_and_time_differences, check that maxes come in same format!
+
                         time_differences = []
                         #m1 = max(data[2])
                         #m2 = max(data[3])
@@ -2771,16 +2776,17 @@ class App(QtGui.QMainWindow):
                         # For timebase 52 these are 1, for timebase 2 these are 10...
                         pulse_width = 1
                         pulse_distance = 1
+                        threshold = 0
                         #if triggers[0] > 0:
                         #if m1 < self.spectrum_high_limits[2]:
                         d1 = baseline_correction_and_limit(data[2], self.spectrum_low_limits[2], self.spectrum_high_limits[2])
                         # Width and distance parameters depends of the timebase. Bigger the timebase (smaller the resolution)
                         # smaller the width and distance needs to be in the find_peak algorithm used in the raising edges finder.
-                        peaks_a = raising_edges_for_raw_pulses(d1 > 0, width=pulse_width, distance=pulse_distance, threshold=0)
+                        peaks_a = raising_edges_for_raw_pulses(d1 > 0, width=pulse_width, distance=pulse_distance, threshold=threshold)
                         #if triggers[1] > 0:
                         #if m2 < self.spectrum_high_limits[3]:
                         d2 = baseline_correction_and_limit(data[3], self.spectrum_low_limits[3], self.spectrum_high_limits[3])
-                        peaks_b = raising_edges_for_raw_pulses(d2 > 0, width=pulse_width, distance=pulse_distance, threshold=0)
+                        peaks_b = raising_edges_for_raw_pulses(d2 > 0, width=pulse_width, distance=pulse_distance, threshold=threshold)
 
                         # Center position of the buffers.
                         ld1 = len(d1) / 2
