@@ -16,6 +16,7 @@ from . gui import App
 from . functions import baseline_correction_and_limit, \
                         raising_edges_for_raw_pulses, \
                         raising_edges_for_square_pulses, \
+                        get_max_heights_and_time_differences, \
                         load_buffers, write_buffers
 
 # For nicer console output.
@@ -26,6 +27,38 @@ colorama.init()
 np.random.seed(19680801)
 
 def process_buffers(buffers, settings, arguments, trigger_channel,
+                    signal_spectrum_acquire_value, signal_spectrum_acquire_event):
+
+    l1, l2, m1, m2, pulse_heights, time_differences = \
+        get_max_heights_and_time_differences(
+            buffers,
+            settings["spectrum_low_limits"],
+            settings["spectrum_high_limits"],
+            arguments["pulse_detection_mode"]
+        )
+    # Auto trigger setting forces trigger to release in Picoscope after certain amount of time,
+    # if there was no activity, and PS will try again.
+    # Thus, data may be empty and it will be unnecessary to send it to GUI.
+    if (l1 > 0 or l2 > 0) and not arguments["headless_mode"]:
+        # Pass raw signal data without any correction and limits to the plotter and
+        # spectrum. Actually, the time difference part can also be moved to the GUI
+        # multi processing thread so that this part of the retrieving data from picoscope
+        # is as simple and streamlined as possible.
+        signal_spectrum_acquire_value["value"] = (
+            buffers,
+            (l1, l2, time_differences,
+                #[bcl[2][i] for i in a1],
+                #[bcl[3][i] for i in a2],
+                [m1] if l1 > 0 else [],
+                [m2] if l2 > 0 else [],
+                trigger_channel
+            )
+        )
+        signal_spectrum_acquire_event.set()
+
+    return (l1, l2, time_differences, pulse_heights)
+
+def __process_buffers(buffers, settings, arguments, trigger_channel,
                     signal_spectrum_acquire_value, signal_spectrum_acquire_event):
 
     time_differences = [] #(np.random.normal(size=1)[0] * 25)
@@ -44,6 +77,8 @@ def process_buffers(buffers, settings, arguments, trigger_channel,
     m1 = max(bcl[2])
     m2 = max(bcl[3])
 
+    pulse_heights.append((m1, m2))
+
     #if m1 < settings["spectrum_low_limits"][2] or m1 > settings["spectrum_high_limits"][2]:
     #    l1 = 0
     #if m2 < settings["spectrum_low_limits"][3] or m2 > settings["spectrum_high_limits"][3]:
@@ -55,7 +90,6 @@ def process_buffers(buffers, settings, arguments, trigger_channel,
         for i in a1:
             for j in a2:
                 time_differences.append((i-j)) # 2ns!
-                pulse_heights.append((max(bcl[2]), max(bcl[3])))
                 if bcl[2][i] == 0 or bcl[3][j] == 0:
                     pass
                     # Debug possible empty raw data channels, even if they were triggered.
@@ -379,11 +413,19 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                     buffers = list(ps.get_buffers())
 
                     trigger_channel = None if block_mode_trigger_settings["enabled"] == 0 else block_mode_trigger_settings["channel"]
-                    sca_a_pulse_count, sca_b_pulse_count, time_differences, pulse_heights = process_buffers(buffers, settings, arguments, trigger_channel,
-                        signal_spectrum_acquire_value, signal_spectrum_acquire_event)
+                    sca_a_pulse_count, sca_b_pulse_count, time_differences, pulse_heights = \
+                        process_buffers(
+                            buffers,
+                            settings,
+                            arguments,
+                            trigger_channel,
+                            signal_spectrum_acquire_value,
+                            signal_spectrum_acquire_event
+                        )
 
                     # Get recording flag from application (initialized from argument parser).
-                    if (arguments["store_waveforms"] == 1 and sca_a_pulse_count > 0 and sca_b_pulse_count > 0) or arguments["store_waveforms"] == 2:
+                    if (arguments["store_waveforms"] == 1 and sca_a_pulse_count > 0 and sca_b_pulse_count > 0) or \
+                        arguments["store_waveforms"] == 2:
                         store = []
                         if "A" in arguments["store_waveforms_channels"]:
                             store.append(buffers[0])
@@ -395,7 +437,7 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                             store.append(buffers[3])
                         write_buffers(store, csv_waveform_file)
 
-                    coincidence_count += sca_a_pulse_count * sca_b_pulse_count
+                    coincidence_count += (sca_a_pulse_count * sca_b_pulse_count)
 
                     # Take rate count from the other channel than the triggered.
                     # Trigger channel will always contain at least one pulse but in reality pulses are
@@ -404,25 +446,46 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                     # This will require some good length of the buffer because too small buffer
                     # would reduce the average hit of the pulses if pulse rate is very low...
 
-                    if start_channel == block_mode_trigger_settings["channel"]:
+                    if False:
+                        if start_channel == block_mode_trigger_settings["channel"]:
+                            rate_count += 1
+
+                        if block_mode_trigger_settings["channel"] == 1:
+                            rate_a += sca_a_pulse_count
+                            if counts_max_a < sca_a_pulse_count:
+                                counts_max_a = sca_a_pulse_count
+                            if counts_min_a > sca_a_pulse_count:
+                                counts_min_a = sca_a_pulse_count
+                            rate_a_avg = timebase_conversion * rate_a / rate_count
+
+                            rate_ab = rate_a + rate_b
+                            rate_ab_avg = timebase_conversion * rate_ab / (rate_count * 2)
+                        else:
+                            rate_b += sca_b_pulse_count
+                            if counts_max_b < sca_b_pulse_count:
+                                counts_max_b = sca_b_pulse_count
+                            if counts_min_b > sca_b_pulse_count:
+                                counts_min_b = sca_b_pulse_count
+                            rate_b_avg = timebase_conversion * rate_b / rate_count
+                    else:
                         rate_count += 1
 
-                    if block_mode_trigger_settings["channel"] == 1:
                         rate_a += sca_a_pulse_count
-                        rate_ab = rate_a + rate_b
                         if counts_max_a < sca_a_pulse_count:
                             counts_max_a = sca_a_pulse_count
                         if counts_min_a > sca_a_pulse_count:
                             counts_min_a = sca_a_pulse_count
                         rate_a_avg = timebase_conversion * rate_a / rate_count
-                        rate_ab_avg = timebase_conversion * rate_ab / (rate_count * 2)
-                    else:
+
                         rate_b += sca_b_pulse_count
                         if counts_max_b < sca_b_pulse_count:
                             counts_max_b = sca_b_pulse_count
                         if counts_min_b > sca_b_pulse_count:
                             counts_min_b = sca_b_pulse_count
                         rate_b_avg = timebase_conversion * rate_b / rate_count
+
+                        rate_ab = rate_a + rate_b
+                        rate_ab_avg = timebase_conversion * rate_ab / (rate_count * 2)
 
                     # Calculate, how many pulses there are in a second in average?
                     # Time window is in nanoseconds, so this needs to be converted to seconds by multiplying with 1000000000.
@@ -467,31 +530,34 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
 
                     print(console_line % data)
 
-                    if arguments["store_statistics"]:
-                        data = (
-                            time_now,
-                            elapsed_time,
-                            sca_a_pulse_count,
-                            sca_b_pulse_count,
-                            rate_a,
-                            rate_b,
-                            rate_a_avg,
-                            rate_b_avg,
-                            sca_a_pulse_count * sca_b_pulse_count,
-                            coincidence_count,
-                            coincidence_count / elapsed_time,
-                            coincidence_count / (buffer_length_ns * rate_count),
-                            0 if len(time_differences) < 1 else time_differences[0],
-                            0 if len(pulse_heights) < 1 else pulse_heights[0][0],
-                            0 if len(pulse_heights) < 1 else pulse_heights[0][1],
-                            timebase_conversion * coincidence_count / rate_count,
-                            rate_count,
-                            buffer_length_ns * rate_count,
-                            block_mode_trigger_settings["channel"]
-                        )
-                        f = open(csv_statistics_file, "a")
-                        print(*data, sep = ";", file = f)
-                        f.close()
+                    if arguments["store_statistics"] > 0:
+                        if (arguments["store_statistics"] == 1 and sca_a_pulse_count > 0 and sca_b_pulse_count > 0) or \
+                           (arguments["store_statistics"] == 2 and (sca_a_pulse_count > 0 or sca_b_pulse_count > 0)) or \
+                            arguments["store_statistics"] == 3:
+                            data = (
+                                time_now,
+                                elapsed_time,
+                                sca_a_pulse_count,
+                                sca_b_pulse_count,
+                                rate_a,
+                                rate_b,
+                                rate_a_avg,
+                                rate_b_avg,
+                                sca_a_pulse_count * sca_b_pulse_count,
+                                coincidence_count,
+                                coincidence_count / elapsed_time,
+                                coincidence_count / (buffer_length_ns * rate_count),
+                                "" if len(time_differences) < 1 else time_differences[0],
+                                "" if len(pulse_heights) < 1 else pulse_heights[0][0],
+                                "" if len(pulse_heights) < 1 else pulse_heights[0][1],
+                                #timebase_conversion * coincidence_count / rate_count,
+                                rate_count,
+                                buffer_length_ns * rate_count,
+                                block_mode_trigger_settings["channel"]
+                            )
+                            f = open(csv_statistics_file, "a")
+                            print(*data, sep = ";", file = f)
+                            f.close()
                     # If single channel trigger is set to alternate,
                     # swap the trigger channel between 0 and 1.
                     if block_mode_trigger_settings["alternate_channel"] == True:
