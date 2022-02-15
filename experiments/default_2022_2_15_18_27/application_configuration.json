@@ -37,7 +37,7 @@
             "window": 10.0
         },
         "front_detector": "channel_a",
-        "high_voltage": -1100
+        "high_voltage": -1000
     },
     "spectrum_channels": [
         "C",
