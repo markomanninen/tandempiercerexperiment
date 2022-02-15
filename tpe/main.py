@@ -139,6 +139,20 @@ def main():
 
             picoscope_mode = args.picoscope_mode
 
+            if args.sca_module_settings_a != "":
+                coarse_gain_a, fine_gain_a, window_a, lower_level_a = map(lambad x: float(x.trim()), args.sca_module_settings_a.split(","))
+                sca_module_settings["channel_a"]["coarse_gain"] = coarse_gain_a
+                sca_module_settings["channel_a"]["fine_gain"] = fine_gain_a
+                sca_module_settings["channel_a"]["window"] = window_a
+                sca_module_settings["channel_a"]["lower_level"] = lower_level_a
+
+            if args.sca_module_settings_b != "":
+                coarse_gain_b, fine_gain_b, window_b, lower_level_b = map(lambad x: float(x.trim()), args.sca_module_settings_b.split(","))
+                sca_module_settings["channel_b"]["coarse_gain"] = coarse_gain_b
+                sca_module_settings["channel_b"]["fine_gain"] = fine_gain_b
+                sca_module_settings["channel_b"]["window"] = window_b
+                sca_module_settings["channel_b"]["lower_level"] = lower_level_b
+
             raw_spectrum_channels = (
                 config["channels"][sca_module_settings["channel_a"]["raw_pulse_index"]],
                 config["channels"][sca_module_settings["channel_b"]["raw_pulse_index"]]
@@ -219,6 +233,8 @@ def main():
             application_configuration["store_statistics"] = args.store_statistics
             application_configuration["execution_time"] = args.execution_time
             application_configuration["pulse_detection_mode"] = args.pulse_detection_mode
+            application_configuration["detector_geometry"] = args.detector_geometry
+            application_configuration["channel_colors"] = args.channel_colors
 
             arguments = [
                 # Share signal spectrum dictionary between processes.
@@ -239,30 +255,20 @@ def main():
             application_configuration["playback_file"] = playback_file
 
             multiprocessing_arguments["main_process_id"] = os.getpid()
-
             multiprocessing_arguments["time_window"] = time_window
-
             multiprocessing_arguments["headless_mode"] = application_configuration["headless_mode"]
-
             multiprocessing_arguments["pulse_source"] = application_configuration["pulse_source"]
-
             multiprocessing_arguments["chance_rate"] = application_configuration["chance_rate"]
-
             multiprocessing_arguments["background_rate"] = application_configuration["background_rate"]
-
             multiprocessing_arguments["store_waveforms"] = application_configuration["store_waveforms"]
-
             multiprocessing_arguments["store_waveforms_channels"] = application_configuration["store_waveforms_channels"]
-
             multiprocessing_arguments["store_statistics"] = application_configuration["store_statistics"]
-
             multiprocessing_arguments["pulse_detection_mode"] = application_configuration["pulse_detection_mode"]
-
             multiprocessing_arguments["execution_time"] = application_configuration["execution_time"]
-
             multiprocessing_arguments["experiments_dir"] = application_configuration["experiments_dir"]
-
             multiprocessing_arguments["experiment_dir"] = application_configuration["experiment_dir"]
+            multiprocessing_arguments["detector_geometry"] = application_configuration["detector_geometry"]
+            multiprocessing_arguments["channel_colors"] = application_configuration["channel_colors"]
 
             print("Main process started: %s" % multiprocessing_arguments["main_process_id"])
 

@@ -4,10 +4,114 @@
 import os
 import numpy as np
 from scipy.signal import find_peaks
+from collections import OrderedDict
 from IPython.display import display, Markdown as md
 from IPython.core.display import HTML
 from PIL import Image
 import json, pandas as pd
+
+sca_settings_order = (
+    "sca_model",
+    "coarse_gain",
+    "fine_gain",
+    "mode",
+    "window",
+    "lower_level",
+)
+
+picoscope_settings_order = (
+    "sca_square_pulse_index",
+    "raw_pulse_index"
+)
+
+measurement_1_headers = [
+    "Measurement Start Time",
+    "Elapsed Time (hh:mm:ss)",
+    "Time Window (ns)",
+    "Clicks in Detector A",
+    "Clicks in Detector B",
+    "Rate of Detector A (1/s)",
+    "Rate of Detector B (1/s)",
+    "Coincidence Count",
+    "Coincidence Rate (1/s)"
+]
+
+measurement_1_keys = [
+    "start_time",
+    "elapsed_time",
+    "time_window",
+    "channel_a_count",
+    "channel_b_count",
+    "channel_a_rate",
+    "channel_b_rate",
+    "coincidence_count",
+    "coincidence_rate"
+]
+
+measurement_2_headers = measurement_1_headers[:-2]
+measurement_2_headers.append("Chance Rate (1/s)")
+
+measurement_2_keys = measurement_1_keys[:-2]
+measurement_2_keys.append("chance_rate")
+
+measurement_3_headers = measurement_1_headers[:]
+measurement_3_keys = measurement_1_keys[:]
+
+measurement_4_headers = measurement_1_headers[:]
+measurement_4_keys = measurement_1_headers[:]
+
+uqe_headers = [
+    "Measurement Start Time",
+    "Elapsed Time (hh:mm:ss)",
+    "Chance Rate (1/s)",
+    "Background Coincidence Rate (1/s)",
+    "Experiment Rate (1/s)",
+    "Corrected Experiment Rate (1/s)",
+    "Unquantum Effect Ratio"
+]
+
+# Not used...
+uqe_keys = [
+    "start_time",
+    "elapsed_time",
+    "chance_rate",
+    "background_coincidence_rate",
+    "experiment_rate",
+    "corrected_rate",
+    "unquantum_effect_ratio"
+]
+
+measurement_key_types = {
+    "start_time": str,
+    "elapsed_time": str,
+    "time_window": int,
+    "channel_a_count": int,
+    "channel_b_count": int,
+    "channel_a_rate": float,
+    "channel_b_rate": float,
+    "coincidence_count": int,
+    "coincidence_rate": float,
+    "chance_rate": float,
+    "background_coincidence_rate": float,
+    "experiment_rate": float,
+    "corrected_rate": float,
+    "unquantum_effect_ratio": float
+}
+
+step1_json_file = "step1_results.json"
+step1_csv_file = "step1_results.csv"
+step1_2_json_file = "step1_2_results.json"
+step1_2_csv_file = "step1_2_results.csv"
+step1_3_json_file = "step1_3_results.json"
+step1_3_csv_file = "step1_3_results.csv"
+step1_4_json_file = "step1_4_results.json"
+step1_4_csv_file = "step1_4_results.csv"
+step2_json_file = "step2_results.json"
+step2_csv_file = "step2_results.csv"
+step3_json_file = "step3_results.json"
+step3_csv_file = "step3_results.csv"
+step4_json_file = "step4_results.json"
+step4_csv_file = "step4_results.csv"
 
 # Normalize signal to zero line.
 def baseline_correct(data):
@@ -186,95 +290,6 @@ def load_styles(file):
     with open(file) as f:
         css = f.read()
     return HTML("<style>%s</style>" % css)
-
-measurement_1_headers = [
-    "Measurement Start Time",
-    "Elapsed Time (hh:mm:ss)",
-    "Time Window (ns)",
-    "Clicks in Detector A",
-    "Clicks in Detector B",
-    "Rate of Detector A (1/s)",
-    "Rate of Detector B (1/s)",
-    "Coincidence Count",
-    "Coincidence Rate (1/s)"
-]
-
-measurement_1_keys = [
-    "start_time",
-    "elapsed_time",
-    "time_window",
-    "channel_a_count",
-    "channel_b_count",
-    "channel_a_rate",
-    "channel_b_rate",
-    "coincidence_count",
-    "coincidence_rate"
-]
-
-measurement_2_headers = measurement_1_headers[:-2]
-measurement_2_headers.append("Chance Rate (1/s)")
-
-measurement_2_keys = measurement_1_keys[:-2]
-measurement_2_keys.append("chance_rate")
-
-measurement_3_headers = measurement_1_headers[:]
-measurement_3_keys = measurement_1_keys[:]
-
-measurement_4_headers = measurement_1_headers[:]
-measurement_4_keys = measurement_1_headers[:]
-
-uqe_headers = [
-    "Measurement Start Time",
-    "Elapsed Time (hh:mm:ss)",
-    "Chance Rate (1/s)",
-    "Background Coincidence Rate (1/s)",
-    "Experiment Rate (1/s)",
-    "Corrected Experiment Rate (1/s)",
-    "Unquantum Effect Ratio"
-]
-
-# Not used...
-uqe_keys = [
-    "start_time",
-    "elapsed_time",
-    "chance_rate",
-    "background_coincidence_rate",
-    "experiment_rate",
-    "corrected_rate",
-    "unquantum_effect_ratio"
-]
-
-measurement_key_types = {
-    "start_time": str,
-    "elapsed_time": str,
-    "time_window": int,
-    "channel_a_count": int,
-    "channel_b_count": int,
-    "channel_a_rate": float,
-    "channel_b_rate": float,
-    "coincidence_count": int,
-    "coincidence_rate": float,
-    "chance_rate": float,
-    "background_coincidence_rate": float,
-    "experiment_rate": float,
-    "corrected_rate": float,
-    "unquantum_effect_ratio": float
-}
-
-step1_json_file = "step1_results.json"
-step1_csv_file = "step1_results.csv"
-step1_2_json_file = "step1_2_results.json"
-step1_2_csv_file = "step1_2_results.csv"
-step1_3_json_file = "step1_3_results.json"
-step1_3_csv_file = "step1_3_results.csv"
-step1_4_json_file = "step1_4_results.json"
-step1_4_csv_file = "step1_4_results.csv"
-step2_json_file = "step2_results.json"
-step2_csv_file = "step2_results.csv"
-step3_json_file = "step3_results.json"
-step3_csv_file = "step3_results.csv"
-step4_json_file = "step4_results.json"
-step4_csv_file = "step4_results.csv"
 
 # save_results("dir", step1_json_file, data)
 def save_results(experiment_dir, measurement_file, data):
@@ -470,3 +485,78 @@ def background_rate_detectors_final(value):
 
 def mathjax_equation(clause):
     return "<br/><br/>\\begin{equation}\n%s\n\\end{equation}" % clause
+
+def load_configuration(json_file):
+    with open(json_file) as file:
+        result = json.load(file)
+    return result
+
+def resolution(block):
+    if block["timebase_n"] == 2:
+        return 2. / 500000000.
+    else:
+        return (block["timebase_n"] - 2.) / 125000000.
+
+def convert_samples(block):
+    time_window = block["pre_trigger_samples"] + block["post_trigger_samples"]
+    return round(time_window * resolution(block), 9)
+
+def format_channel_data(data, channel_name, fields, keys = False):
+    channel = data["sca_module_settings"][channel_name]
+    return [(key.title().replace("_", " ") if keys else value) for key, value in OrderedDict([(k, channel[k]) for k in fields]).items()]
+
+def get_report_header(directory):
+
+    data = load_configuration("%s\\application_configuration.json" % directory)
+    worker = load_configuration("%s\worker_configuration.json" % directory)
+
+    block = worker["picoscope"]["block_mode_timebase_settings"]
+    trig = worker["picoscope"]["block_mode_trigger_settings"]
+
+    trigger = "%s, alternate: %s " % (data["trigger_mode"], trig["alternate_channel"]) if data["trigger_mode"] == "simple" else "None"
+
+    pulse_detection_raw = "RAW `scipy.find_peak(width=%s, distance=%s, threshold=%s)`" % (1, 1, 0)
+    pulse_detection_sca = "SCA `(pos[:-1] & ~pos[1:]).nonzero()`"
+    pulse_detection = pulse_detection_sca if data["pulse_detection_mode"] == 0 else pulse_detection_raw
+
+    front_detector = data["sca_module_settings"]["front_detector"].replace("channel_", "").upper() if data["detector_geometry"] == "tandem" or data["detector_geometry"] == "top" else "na"
+
+    df = pd.DataFrame({
+        "": format_channel_data(data, "channel_a", sca_settings_order, True),
+        "Channel A": format_channel_data(data, "channel_a", sca_settings_order),
+        "Channel B": format_channel_data(data, "channel_b", sca_settings_order)
+    }).set_index([""]).rename(columns={"": "", "Channel A": "Detector A", "Channel B": "Detector B"})
+    instrument_details = "\n\r<h3>SCA instrument details</h3>\n\r%s" % df.to_markdown()
+
+    df = pd.DataFrame([worker["picoscope"]["voltage_range"], data["spectrum_low_limits"], data["spectrum_high_limits"]])
+    df.index = ["Voltage range", "ADC low limits", "ADC high limits"]
+    adc_limits = "\n\r<h3>ADC limits for PicoScope channels</h3>\n\r" + df.rename(columns={0: "A (0)", 1: "B (1)", 2: "C (2)", 3: "D (3)"}).to_markdown()
+
+    df = pd.DataFrame({
+        "": format_channel_data(data, "channel_a", picoscope_settings_order, True),
+        "Channel A": format_channel_data(data, "channel_a", picoscope_settings_order),
+        "Channel B": format_channel_data(data, "channel_b", picoscope_settings_order)
+    }).set_index([""]).rename(columns={"": "", "Channel A": "Detector A", "Channel B": "Detector B"})
+    picoscope_details = "\n\r<h3>PicoScope channel map</h3>\n\r%s" % df.to_markdown()
+
+    if data["trigger_mode"] == "simple":
+        picoscope_details += "\n\r<h3>PicoScope trigger details</h3>\
+            <table>\
+            <tr><th>Channel%s</th><td>%s</td></tr>\
+            <tr><th>Delay</th><td>%s</td></tr>\
+            <tr><th>Direction</th><td>%s</td></tr>\
+            <tr><th>Threshold</th><td>%s</td></tr>\
+            </table>\n\r" % ((" (start)" if trig["alternate_channel"] else ""), trig["channel"], trig["delay"], trig["direction"], trig["threshold"])
+
+    return md("<h2>%s</h2><h3>General settings</h3>\
+                <table>\
+                <tr><th>Pulse source</th><td>%s</td></tr>\
+                <tr><th>Pulse detection</th><td>%s</td></tr>\
+                <tr><th>Sample size</th><td>%ss</td></tr>\
+                <tr><th>Resolution</th><td>%s</td></tr>\
+                <tr><th>PicoScope trigger</th><td>%s</td></tr>\
+                <tr><th>Detector geometry</th><td>%s</td></tr>\
+                <tr><th>Front detector</th><td>%s</td></tr>\
+                <tr><th>PMT High Voltage</th><td>%s</td></tr>\
+                </table>%s%s%s" % \
+       (data["experiment_name"], data["pulse_source"], pulse_detection, convert_samples(block), resolution(block), trigger, data["detector_geometry"], front_detector, data["sca_module_settings"]["high_voltage"], instrument_details, adc_limits, picoscope_details))

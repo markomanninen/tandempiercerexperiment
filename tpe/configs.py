@@ -60,12 +60,12 @@ sca_module_default_settings = {
         "sca_square_pulse_index": 0,
         # Channel index.
         "raw_pulse_index": 2,
-        "coarse_gain": 4,
-        "fine_gain": 3.0,
+        "coarse_gain": 4.0,
+        "fine_gain": 3.75,
         # High level discriminator.
         "window": 10.0,
         # Low level discriminator.
-        "lower_level": 0.10,
+        "lower_level": 0.75,
         # Mode options are: diff|int.
         "mode": "diff"
     },
@@ -74,10 +74,10 @@ sca_module_default_settings = {
         "sca_model": "Ortec 490B",
         "sca_square_pulse_index": 1,
         "raw_pulse_index": 3,
-        "coarse_gain": 4,
-        "fine_gain": 3.0,
+        "coarse_gain": 4.0,
+        "fine_gain": 10.0,
         "window": 10.0,
-        "lower_level": 0.10,
+        "lower_level": 0.40,
         "mode": "diff"
     }
 }
@@ -154,6 +154,9 @@ def create_config():
     # Define channels that are used to store signals. Use with store_waveforms options.
     data["store_waveforms_channels"] = "ABCD"
 
+    # Channel colors. R=Red, B=Blue, G=Green
+    data["channel_colors"] = "RBRB"
+
     # Automatic halt for execution of the experiment. 0 means no interruption, quiting must be done from the application or ctrl-c from console. 3600 means an hour of execution, then halting it.
     data["execution_time"] = 0
 
@@ -172,6 +175,8 @@ def create_config():
     data["timebase"] = timebase
     data["pre_trigger_samples"] = pre_trigger_samples
     data["post_trigger_samples"] = post_trigger_samples
+
+    data["detector_geometry"] = "tandem"
 
     # Experiment step configurations.
 

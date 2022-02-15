@@ -178,6 +178,28 @@ def load_args(default_config):
         choices = [0, 1],
         help = "Pulse detection mode. 0 = detect pulse from the (SCA) square wave pulse. 1 = detect pulse from the raw pulse. Default is: %s" % default_config["pulse_detection_mode"])
 
+    parser.add_argument("--detector_geometry",
+        dest = "detector_geometry",
+        default = default_config["detector_geometry"],
+        type = str,
+        choices = ["tandem", "top", "next", "apart"],
+        help = "Detector position geometry. Default is: %s" % default_config["detector_geometry"])
+
+    parser.add_argument("--channel_colors",
+        dest = "channel_colors",
+        default = default_config["channel_colors"],
+        help = "Default is: %s" % default_config["channel_colors"])
+
+    parser.add_argument("--sca_module_settings_a",
+        dest = "sca_module_settings_a",
+        default = "",
+        help = "Override sca module settings for channel A. Format is: {coarse_gain},{fine_gain},{window},{lower_level}. Default is empty when settings are retrievved from the config.json file.")
+
+    parser.add_argument("--sca_module_settings_b",
+        dest = "sca_module_settings_b",
+        default = "",
+        help = "Override sca module settings for channel B. Format is: {coarse_gain},{fine_gain},{window},{lower_level}. Default is empty when settings are retrievved from the config.json file.")
+
     parser.add_argument("--verbose",
         dest = "verbose",
         default = False,
