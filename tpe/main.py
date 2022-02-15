@@ -140,14 +140,14 @@ def main():
             picoscope_mode = args.picoscope_mode
 
             if args.sca_module_settings_a != "":
-                coarse_gain_a, fine_gain_a, window_a, lower_level_a = map(lambad x: float(x.trim()), args.sca_module_settings_a.split(","))
+                coarse_gain_a, fine_gain_a, window_a, lower_level_a = map(lambda x: float(x.trim()), args.sca_module_settings_a.split(","))
                 sca_module_settings["channel_a"]["coarse_gain"] = coarse_gain_a
                 sca_module_settings["channel_a"]["fine_gain"] = fine_gain_a
                 sca_module_settings["channel_a"]["window"] = window_a
                 sca_module_settings["channel_a"]["lower_level"] = lower_level_a
 
             if args.sca_module_settings_b != "":
-                coarse_gain_b, fine_gain_b, window_b, lower_level_b = map(lambad x: float(x.trim()), args.sca_module_settings_b.split(","))
+                coarse_gain_b, fine_gain_b, window_b, lower_level_b = map(lambda x: float(x.trim()), args.sca_module_settings_b.split(","))
                 sca_module_settings["channel_b"]["coarse_gain"] = coarse_gain_b
                 sca_module_settings["channel_b"]["fine_gain"] = fine_gain_b
                 sca_module_settings["channel_b"]["window"] = window_b
