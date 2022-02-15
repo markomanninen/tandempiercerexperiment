@@ -2,6 +2,8 @@
     "background_rate": 0.0,
     "bin_count": 256,
     "chance_rate": 0.0,
+    "channel_colors": "RBRB",
+    "detector_geometry": "top",
     "execution_time": 21600,
     "experiment_dir": "default_2022_2_13_3_52",
     "experiment_name": "Detectors on top of each other - No trigger long run",
