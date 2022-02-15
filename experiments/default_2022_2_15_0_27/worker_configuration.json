@@ -37,9 +37,9 @@
     "playback_file": "",
     "sca_module": {
         "channel_a": {
-            "coarse_gain": 4,
-            "fine_gain": 3.0,
-            "lower_level": 0.1,
+            "coarse_gain": 4.0,
+            "fine_gain": 3.75,
+            "lower_level": 0.75,
             "mode": "diff",
             "raw_pulse_index": 2,
             "sca_model": "Ortec 490B",
@@ -47,9 +47,9 @@
             "window": 10.0
         },
         "channel_b": {
-            "coarse_gain": 4,
-            "fine_gain": 3.0,
-            "lower_level": 0.1,
+            "coarse_gain": 4.0,
+            "fine_gain": 10.0,
+            "lower_level": 0.4,
             "mode": "diff",
             "raw_pulse_index": 3,
             "sca_model": "Ortec 490B",
