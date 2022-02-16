@@ -14,9 +14,24 @@ $ python run.py --playback_file=tpe_playback_2021_12_21_17_42.dat
 
 Run with PicoScope model 2000a:
 
-$ python run.py --picoscope_mode=block
+$ python run.py --pulse_source="Background" --store_statistics=2 --pulse_detection_mode=0 --simple_trigger=1 --timebase=2 --pre_trigger_samples=5000 --post_trigger_samples=5000 --execution_time=10800 --experiment_name="Detectors on top of each other - Alternating trigger 2ns" --simple_trigger_alternate=1 --detector_geometry=top
 
 ---
+
+## Reports
+
+Experiment measurement set report template:
+
+- [Experiment set report template](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/report_template.ipynb)
+
+Individual measurement reports:
+
+- [TPE measurement report - detectors apart from each other - 4ms 6h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20report%20-%20detectors%20apart%20from%20each%20other.ipynb)
+- [TPE measurement report - detectors apart from each other - 2ns 3h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20report%20-%20detectors%20apart%20from%20each%20other%20-%202ns%203h.ipynb)
+- [TPE measurement report - detectors next to each other - 4ms 6h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20report%20-%20detectors%20next%20to%20each%20other.ipynb)
+- [TPE measurement report - detectors next to each other - 2ns 3h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20report%20-%20detectors%20next%20to%20each%20other%20-%202ns%203h.ipynb)
+- [TPE measurement report - detectors on top of each other - 4ms 6h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20report%20-%20detectors%20on%20top%20of%20each%20other.ipynb)
+- [TPE measurement report - detectors on top of each other - 2ns 3h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20report%20-%20detectors%20on%20top%20of%20each%20other%20-%202ns%203h.ipynb)
 
 ## Usage
 
@@ -43,6 +58,10 @@ usage: run.py [-h] [--file PLAYBACK_FILE] [--bins BIN_COUNT]
               [--pre_trigger_samples PRE_TRIGGER_SAMPLES]
               [--post_trigger_samples POST_TRIGGER_SAMPLES]
               [--advanced_trigger {0,1}] [--pulse_detection_mode {0,1}]
+              [--detector_geometry {tandem,top,next,apart}]
+              [--channel_colors CHANNEL_COLORS]
+              [--sca_module_settings_a SCA_MODULE_SETTINGS_A]
+              [--sca_module_settings_b SCA_MODULE_SETTINGS_B]
               [--verbose VERBOSE]
 
 Tandem Piercer Experiment simulator, playback and PicoScope data acquisition
@@ -138,6 +157,20 @@ optional arguments:
                         Pulse detection mode. 0 = detect pulse from the (SCA)
                         square wave pulse. 1 = detect pulse from the raw
                         pulse. Default is: 0
+  --detector_geometry {tandem,top,next,apart}
+                        Detector position geometry. Default is: tandem
+  --channel_colors CHANNEL_COLORS
+                        Default is: RBRB
+  --sca_module_settings_a SCA_MODULE_SETTINGS_A
+                        Override sca module settings for channel A. Format is:
+                        {coarse_gain},{fine_gain},{window},{lower_level}.
+                        Default is empty when settings are retrieved from the
+                        config.json file.
+  --sca_module_settings_b SCA_MODULE_SETTINGS_B
+                        Override sca module settings for channel B. Format is:
+                        {coarse_gain},{fine_gain},{window},{lower_level}.
+                        Default is empty when settings are retrieved from the
+                        config.json file.
   --verbose VERBOSE     Verbose mode for showing for debug information in the
                         console. Options are: true|false. Default is: False
 
