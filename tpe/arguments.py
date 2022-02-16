@@ -193,12 +193,12 @@ def load_args(default_config):
     parser.add_argument("--sca_module_settings_a",
         dest = "sca_module_settings_a",
         default = "",
-        help = "Override sca module settings for channel A. Format is: {coarse_gain},{fine_gain},{window},{lower_level}. Default is empty when settings are retrievved from the config.json file.")
+        help = "Override sca module settings for channel A. Format is: {coarse_gain},{fine_gain},{window},{lower_level}. Default is empty when settings are retrieved from the config.json file.")
 
     parser.add_argument("--sca_module_settings_b",
         dest = "sca_module_settings_b",
         default = "",
-        help = "Override sca module settings for channel B. Format is: {coarse_gain},{fine_gain},{window},{lower_level}. Default is empty when settings are retrievved from the config.json file.")
+        help = "Override sca module settings for channel B. Format is: {coarse_gain},{fine_gain},{window},{lower_level}. Default is empty when settings are retrieved from the config.json file.")
 
     parser.add_argument("--verbose",
         dest = "verbose",
