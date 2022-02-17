@@ -140,18 +140,29 @@ def main():
             picoscope_mode = args.picoscope_mode
 
             if args.sca_module_settings_a != "":
-                coarse_gain_a, fine_gain_a, window_a, lower_level_a = map(lambda x: float(x.trim()), args.sca_module_settings_a.split(","))
+                coarse_gain_a, fine_gain_a, window_a, lower_level_a = map(lambda x: float(x.strip()), args.sca_module_settings_a.split(","))
                 sca_module_settings["channel_a"]["coarse_gain"] = coarse_gain_a
                 sca_module_settings["channel_a"]["fine_gain"] = fine_gain_a
                 sca_module_settings["channel_a"]["window"] = window_a
                 sca_module_settings["channel_a"]["lower_level"] = lower_level_a
 
             if args.sca_module_settings_b != "":
-                coarse_gain_b, fine_gain_b, window_b, lower_level_b = map(lambda x: float(x.trim()), args.sca_module_settings_b.split(","))
+                coarse_gain_b, fine_gain_b, window_b, lower_level_b = map(lambda x: float(x.strip()), args.sca_module_settings_b.split(","))
                 sca_module_settings["channel_b"]["coarse_gain"] = coarse_gain_b
                 sca_module_settings["channel_b"]["fine_gain"] = fine_gain_b
                 sca_module_settings["channel_b"]["window"] = window_b
                 sca_module_settings["channel_b"]["lower_level"] = lower_level_b
+
+            if args.high_voltage > 0:
+                sca_module_settings["high_voltage"] = args.high_voltage
+
+            if args.spectrum_low_limits != "":
+                low_limit_a, low_limit_b, low_limit_c, low_limit_d = map(lambda x: int(x.strip()), args.spectrum_low_limits.split(","))
+                step_config["spectrum_low_limits"] = (low_limit_a, low_limit_b, low_limit_c, low_limit_d)
+
+            if args.spectrum_high_limits != "":
+                high_limit_a, high_limit_b, high_limit_c, high_limit_d = map(lambda x: int(x.strip()), args.spectrum_high_limits.split(","))
+                step_config["spectrum_high_limits"] = (high_limit_a, high_limit_b, high_limit_c, high_limit_d)
 
             raw_spectrum_channels = (
                 config["channels"][sca_module_settings["channel_a"]["raw_pulse_index"]],
