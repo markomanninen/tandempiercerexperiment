@@ -497,7 +497,7 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                     # the calculation will be biassed. But for high rate constant signals, that should be ok.
                     # Question for Tandem Experiment is, if there are gamma peaks coming once in every 20 microseconds so that
                     # the rate calculated here is correct?
-                    console_line = "Samples: %s/%ss Elapsed: %ss | A-rate: %s/s (cnt/min/max: %s/%s/%s) | B-rate: %s/s (cnt/min/max: %s/%s/%s) | Chance rate: %s (500ns) | Coincidence rate elps/smpl: %s/%s (cnt: %s) | %s-%s-%s \033[A"
+                    console_line = "Samples: %s/%ss Elapsed: %ss | A: %s/s (cnt/min/max: %s/%s/%s) | B: %s/s (cnt/min/max: %s/%s/%s) | CHC rate: %s (500ns) | CNC rate elps/smpl: %s/%s (cnt: %s) | %s-%s-%s \033[A"
 
                     time_now = tm()
 
@@ -519,13 +519,13 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                         rate_b,
                         counts_min_b,
                         counts_max_b,
-                        round(rate_a_avg * rate_b_avg * 5*10**-7, 6),
-                        round(coincidence_count / elapsed_time, 6),
-                        round(coincidence_count / (buffer_length_ns * rate_count), 6),
+                        round(rate_a_avg * rate_b_avg * 5*10**-7, 3),
+                        round(coincidence_count / elapsed_time, 3),
+                        round(coincidence_count / (buffer_length_ns * rate_count), 3),
                         coincidence_count,
                         td,
-                        ph1,
-                        ph2
+                        round(ph1, 1),
+                        round(ph2, 1)
                     )
 
                     print(console_line % data)
@@ -535,6 +535,7 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                            (arguments["store_statistics"] == 2 and (sca_a_pulse_count > 0 or sca_b_pulse_count > 0)) or \
                             arguments["store_statistics"] == 3:
                             data = (
+                                rate_count,
                                 time_now,
                                 elapsed_time,
                                 sca_a_pulse_count,
@@ -550,8 +551,6 @@ def picoscope_worker(arguments, ps, picoscope_mode, verbose):
                                 "" if len(time_differences) < 1 else time_differences[0],
                                 "" if len(pulse_heights) < 1 else pulse_heights[0][0],
                                 "" if len(pulse_heights) < 1 else pulse_heights[0][1],
-                                #timebase_conversion * coincidence_count / rate_count,
-                                rate_count,
                                 buffer_length_ns * rate_count,
                                 block_mode_trigger_settings["channel"]
                             )
