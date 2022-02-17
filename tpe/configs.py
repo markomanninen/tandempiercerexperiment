@@ -49,7 +49,7 @@ block_mode_advanced_trigger_settings = {
 # SCA (single channel analyzer) NIM (nuclear instrumentation module) default_settings. These must be manually set according to values in the knobs.
 sca_module_default_settings = {
     # High voltage value. Tested values from 700 to 1250. Negative voltage is required for the detectors used in my experiment. Same voltage is used for both SCA NIM modules.
-    "high_voltage": -1100,
+    "high_voltage": -1000,
     # What channel is treated as front detector? 0 is channel A, 1 is channel B. This should be on e of the SCA channels!
     "front_detector": "channel_a",
     # Channel A settings.
@@ -125,7 +125,7 @@ def create_config():
     # (2^16) / 2. Min is -32768
     adc_max_0, adc_max_1, adc_max_2, adc_max_3 = (32768, 32768, 32768, 32768)
 
-    adc_min_0, adc_min_1, adc_min_2, adc_min_3 = (4096, 4096, 500, 500)
+    adc_min_0, adc_min_1, adc_min_2, adc_min_3 = (4096, 4096, 842, 576)
 
     if data["voltage_range"][2] == "20V":
         adc_max_2 = 19661 # 19660 for 12V (20V)
