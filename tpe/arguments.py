@@ -182,7 +182,7 @@ def load_args(default_config):
         dest = "detector_geometry",
         default = default_config["detector_geometry"],
         type = str,
-        choices = ["tandem", "top", "next", "apart"],
+        choices = ["tandem", "top", "next", "apart", "true"],
         help = "Detector position geometry. Default is: %s" % default_config["detector_geometry"])
 
     parser.add_argument("--channel_colors",
@@ -199,6 +199,22 @@ def load_args(default_config):
         dest = "sca_module_settings_b",
         default = "",
         help = "Override sca module settings for channel B. Format is: {coarse_gain},{fine_gain},{window},{lower_level}. Default is empty when settings are retrieved from the config.json file.")
+
+    parser.add_argument("--spectrum_low_limits",
+        dest = "spectrum_low_limits",
+        default = "",
+        help = "Override ADC low limit settings for channel A - D. Format is: {A},{B},{C},{D}. Each limit is given by whole number between 0 and 32768. Default is empty when settings are retrieved from the config.json file.")
+
+    parser.add_argument("--spectrum_high_limits",
+        dest = "spectrum_high_limits",
+        default = "",
+        help = "Override ADC high limit settings for channel A - D. Format is: {A},{B},{C},{D}. Each limit is given by whole number between 0 and 32768. Default is empty when settings are retrieved from the config.json file.")
+
+    parser.add_argument("--high_voltage",
+        dest = "high_voltage",
+        default = 0,
+        type = int,
+        help = "Override sca module settings for photomultiplier tube high voltage value. Can be positive or negative integer. Default is: 0, when it will be override by the step sca_module_settings.")
 
     parser.add_argument("--verbose",
         dest = "verbose",
