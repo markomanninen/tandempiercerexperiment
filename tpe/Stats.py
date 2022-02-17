@@ -23,6 +23,7 @@ class Stats():
 
         if headers is None:
             self.headers = (
+                "RateCount",
                 "Time",
                 "Elapsed",
                 "A",
@@ -38,7 +39,6 @@ class Stats():
                 "TimeDifference",
                 "APulseHeight",
                 "BPulseHeight",
-                "RateCount",
                 "SampleSize",
                 "Chn"
             )
@@ -62,9 +62,15 @@ class Stats():
     def print_experiment_stat_files(self, directory = None):
         return list(map(print, self.get_experiment_stat_files(directory)))
 
-    def read_stats_dataframe(self, directory):
+    def read_stats_dataframe(self, directory, filter = False):
         self.csv_filename = "%s\statistics.csv" % directory
         df = pd.read_csv(self.csv_filename, sep = ";", names = self.headers)
+
+        if filter:
+            df = df[(df["APulseHeight"] > 0) | (df["BPulseHeight"] > 0)]
+            df = df[(((df["APulseHeight"] == 0) & (df["Cnc"] > 0) == False) & ((df["BPulseHeight"] == 0) & (df["Cnc"] > 0) == False))]
+
+
         self.desc = df.describe()
         df['Time'] = pd.to_datetime(df['Time'], unit = 's')
         pd.options.display.float_format = '{:,.3f}'.format
@@ -211,12 +217,14 @@ class Stats():
 
     def spectrum_histogram_a(self, coincidences = True, *args, **kwargs):
         df = self.get_filtered_stats(coincidences)
+        #df = df[df["APulseHeight"] > 0]
         df['APulseHeight'] = df['APulseHeight'].apply(self.to_kev_a)
         kwargs["bins"] = kwargs["bins"] if "bins" in kwargs else self.default_bins
         return self.histogram(df["APulseHeight"], kind="hist", *args, **kwargs)
 
     def spectrum_histogram_b(self, coincidences = True, *args, **kwargs):
         df = self.get_filtered_stats(coincidences)
+        #df = df[df["BPulseHeight"] > 0]
         df['BPulseHeight'] = df['BPulseHeight'].apply(self.to_kev_b)
         kwargs["bins"] = kwargs["bins"] if "bins" in kwargs else self.default_bins
         return self.histogram(df["BPulseHeight"], kind = "hist", *args, **kwargs)
@@ -264,11 +272,11 @@ class Stats():
         for axis in [axes[0].xaxis, axes[0].yaxis]:
             axis.set_major_locator(ticker.MaxNLocator(integer = True))
 
-        histogram, count = self.time_difference_histogram(time_difference = time_difference, channel = channel, title = "Coincidence time difference", figsize = (16, 4), ax = axes[0], bins = self.default_bins)
+        histogram, count = self.time_difference_histogram(time_difference = time_difference, channel = channel, title = "Coincidence time difference", figsize = (16, 6), ax = axes[0], bins = self.default_bins)
         axes[0].set_xlabel("Time (ns)")
         axes[0].set_ylabel("Count (%s)" % count)
 
-        scatter = self.scatter(time_difference = time_difference, channel = channel, title = "Coincidence scatter", figsize = (16, 4), ax = axes[1])
+        scatter = self.scatter(time_difference = time_difference, channel = channel, title = "Coincidence scatter", figsize = (16, 6), ax = axes[1])
         axes[1].set_xlabel("Channel A (%s)" % ("ADC" if self.adc_kev_ratio_a == 0 else "keV"))
         axes[1].set_ylabel("Channel B (%s)" % ("ADC" if self.adc_kev_ratio_b == 0 else "keV"))
 
@@ -315,12 +323,15 @@ class Stats():
         return a, b
 
     def _fit_spectra(self, pulse_heights, max_pulse_height, min_pulse_height, parent_plot, log, bins, rolling, color, kevf):
-        y, x = np.histogram([kevf(x) for x in pulse_heights], bins = np.linspace(kevf(min_pulse_height), kevf(max_pulse_height), bins))
+        d = [kevf(x) for x in pulse_heights]
+        y, x = np.histogram(d, bins = np.linspace(kevf(min_pulse_height), kevf(max_pulse_height), bins))
         centers = x[:-1] + np.diff(x)[0] / 2
         norm_y = y / y.sum()
         norm_y_ma = Series(norm_y).rolling(rolling, center = True).mean().values * 2 * max(y)
         ax = pd.DataFrame(norm_y_ma, centers).plot(logy = log, color = color, ax = parent_plot, marker = '.')
         ax.legend([Line2D([0], [0], color = color, lw = 2)], ["Fit"])
+        #ax = pd.DataFrame(norm_y * max(y) * 2, x[:-1]).plot(logy = log, color = color, ax = parent_plot, marker = '.')
+        #ax.legend([Line2D([0], [0], color = color, lw = 2)], ["Fit"])
 
     def fit_spectra(self, rolling = 3, *args, **kwargs):
         kwargs["bins"] = kwargs["bins"] if "bins" in kwargs else self.default_bins
@@ -328,8 +339,10 @@ class Stats():
         log = "log" in kwargs and kwargs["log"]
         coincidences = "coincidences" in kwargs and kwargs["coincidences"]
         df = self.get_filtered_stats(coincidences)
-        self._fit_spectra(df["APulseHeight"], df["APulseHeight"].max(), df["APulseHeight"].min(), a, log, kwargs["bins"], rolling, "Blue", self.to_kev_a)
-        self._fit_spectra(df["BPulseHeight"], df["BPulseHeight"].max(), df["BPulseHeight"].min(), b, log, kwargs["bins"], rolling, "Red", self.to_kev_b)
+        dfa = df #df[df["APulseHeight"] > 0]
+        self._fit_spectra(dfa["APulseHeight"], dfa["APulseHeight"].max(), dfa["APulseHeight"].min(), a, log, kwargs["bins"], rolling, "Blue", self.to_kev_a)
+        dfb = df #df[df["BPulseHeight"] > 0]
+        self._fit_spectra(dfb["BPulseHeight"], dfb["BPulseHeight"].max(), dfb["BPulseHeight"].min(), b, log, kwargs["bins"], rolling, "Red", self.to_kev_b)
 
     def print_stats_link(self):
         return md("<br/><center><h3>Download csv file: <a target='_blank' href='https://github.com/markomanninen/tandempiercerexperiment/raw/main%s'>statistics.csv</a></h3></center>" % self.csv_filename.replace("\\\\", "/").replace("..", ""))
@@ -339,10 +352,10 @@ class Stats():
 
             "\r\n",
 
-            "Start time:\t%s" % self.start_time(),
-            "End time:\t%s" % self.end_time(),
+            "Start time:\t%s" % str(self.start_time()).split(".")[0],
+            "End time:\t%s" % str(self.end_time()).split(".")[0],
 
-            "Time elapsed:\t%s" % timedelta(seconds=int(self.time_elapsed())),
+            "Time elapsed:\t%s" % timedelta(seconds = int(self.time_elapsed())),
 
             "Rows count:\t%s" % self.rows_count(),
 
@@ -353,7 +366,7 @@ class Stats():
             "Elapsed rate B:\t%s/s" % round(self.total_count_b()/self.time_elapsed(), 1),
 
             "Sample rate A:\t%s/s" % round(self.rate_a(), 1),
-            "Sample rate B:\t%s/2" % round(self.rate_b(), 1),
+            "Sample rate B:\t%s/s" % round(self.rate_b(), 1),
 
             "\r\n",
 
