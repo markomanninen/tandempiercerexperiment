@@ -2862,7 +2862,7 @@ class App(QtGui.QMainWindow):
                         self.signal_spectrum_plot_a.setData(*self.log(x, y, voltage_range_a))
                     self.signal_spectrum_plot.setLabel('left', self.signal_spectrum_plot_left_label % (self.signal_spectrum_clicks_detector_a, self.logarithmic_scale if max(y) > self.logarithmic_scale_threshold else ""))
 
-                    if True:
+                    if False:
                         centers = x[:-1] + np.diff(x)[0] / 2
                         norm_y = y / y.sum()
                         norm_y_ma = Series(norm_y).rolling(1, center=True).mean().values * ((max(y) * 20) if max(y) < self.logarithmic_scale_threshold else (max(y)/2))
@@ -2914,7 +2914,7 @@ class App(QtGui.QMainWindow):
                         self.signal_spectrum_plot_b.setData(*self.log(x, y, voltage_range_b))
                     self.signal_spectrum_plot.setLabel('right', self.signal_spectrum_plot_right_label % (self.signal_spectrum_clicks_detector_b, self.logarithmic_scale if max(y) > self.logarithmic_scale_threshold else ""))
 
-                    if True:
+                    if False:
                         centers = x[:-1] + np.diff(x)[0] / 2
                         norm_y = y / y.sum()
                         norm_y_ma = Series(norm_y).rolling(1, center=True).mean().values * ((max(y) * 20) if max(y) < self.logarithmic_scale_threshold else (max(y)/2))
