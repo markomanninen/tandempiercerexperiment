@@ -153,8 +153,7 @@ def get_max_heights_and_time_differences(buffers, spectrum_low_limits, spectrum_
 
         #bcl = list(map(lambda x: baseline_correction_and_limit(*x), zip(buffers, settings["spectrum_low_limits"], settings["spectrum_high_limits"])))
         bcl = buffers
-        #a1 = raising_edges_for_raw_pulses(bcl[2])
-        #a2 = raising_edges_for_raw_pulses(bcl[3])
+
         a1 = raising_edges_for_square_pulses(np.array(bcl[0]), 8192)
         a2 = raising_edges_for_square_pulses(np.array(bcl[1]), 8192)
 
@@ -162,7 +161,12 @@ def get_max_heights_and_time_differences(buffers, spectrum_low_limits, spectrum_
         l2 = len(a2)
 
         m1 = max(bcl[2])
+        if m1 == 0:
+            l1 = 0
+
         m2 = max(bcl[3])
+        if m2 == 0:
+            l2 = 0
 
         pulse_heights.append((m1, m2))
 
@@ -177,8 +181,8 @@ def get_max_heights_and_time_differences(buffers, spectrum_low_limits, spectrum_
             for i in a1:
                 for j in a2:
                     time_differences.append((i-j)) # 2ns!
-                    if bcl[2][i] == 0 or bcl[3][j] == 0:
-                        pass
+                    #if bcl[2][i] == 0 or bcl[3][j] == 0:
+                    #    pass
                         # Debug possible empty raw data channels, even if they were triggered.
                         # There might be occasional cases when in that certain index there is zero value
                         # but then just before or after there is currant value.
@@ -208,6 +212,9 @@ def get_max_heights_and_time_differences(buffers, spectrum_low_limits, spectrum_
     #if m2 < self.spectrum_high_limits[3]:
     d2 = baseline_correction_and_limit(buffers[3], spectrum_low_limits[3], spectrum_high_limits[3])
     peaks_b = raising_edges_for_raw_pulses(d2 > 0, width=pulse_width, distance=pulse_distance, threshold=threshold)
+
+    l1 = len(peaks_a)
+    l2 = len(peaks_b)
 
     # Center position of the buffers.
     ld1 = len(d1) / 2
@@ -242,16 +249,22 @@ def get_max_heights_and_time_differences(buffers, spectrum_low_limits, spectrum_
     ]
 
     m1 = peaks[0][-1:][0][1] if len(peaks[0]) > 0 else 0
+    if m1 == 0:
+        l1 = 0
+
     m2 = peaks[1][-1:][0][1] if len(peaks[1]) > 0 else 0
+    if m2 == 0:
+        l2 = 0
 
     pulse_heights.append((m1, m2))
 
-    for i, t in peaks[0]:
-        for j, u in peaks[1]:
-            # timebase_n per unit!
-            time_differences.append((i-j))
+    if l1 > 0 and l2 > 0:
+        for i, t in peaks[0]:
+            for j, u in peaks[1]:
+                # timebase_n per unit!
+                time_differences.append((i-j))
 
-    return len(peaks_a), len(peaks_b), m1, m2, pulse_heights, time_differences
+    return l1, l2, m1, m2, pulse_heights, time_differences
 
 # Use the show_image helper function as a shortcut to display images.
 def show_image(file, width=None, height=None):
