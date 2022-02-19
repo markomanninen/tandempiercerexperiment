@@ -1,0 +1,67 @@
+{
+    "background_rate": 0.0,
+    "bin_count": 256,
+    "chance_rate": 0.0,
+    "channel_colors": "RBRB",
+    "detector_geometry": "apart",
+    "execution_time": 21600,
+    "experiment_dir": "default_2022_2_19_12_22",
+    "experiment_name": "Background whole spectrum",
+    "experiments_dir": "experiments",
+    "has_picoscope": true,
+    "headless_mode": 1,
+    "logarithmic_y_scale": 3,
+    "picoscope_mode": "block",
+    "playback_file": "",
+    "pulse_detection_mode": 0,
+    "pulse_source": "Background",
+    "sca_module_settings": {
+        "channel_a": {
+            "coarse_gain": 4.0,
+            "fine_gain": 3.75,
+            "lower_level": 0.7,
+            "mode": "diff",
+            "raw_pulse_index": 2,
+            "sca_model": "Ortec 490B",
+            "sca_square_pulse_index": 0,
+            "window": 10.0
+        },
+        "channel_b": {
+            "coarse_gain": 4.0,
+            "fine_gain": 10.0,
+            "lower_level": 0.4,
+            "mode": "diff",
+            "raw_pulse_index": 3,
+            "sca_model": "Ortec 490B",
+            "sca_square_pulse_index": 1,
+            "window": 10.0
+        },
+        "front_detector": "channel_a",
+        "high_voltage": -1000
+    },
+    "spectrum_channels": [
+        "C",
+        "D"
+    ],
+    "spectrum_high_limits": [
+        32768,
+        32768,
+        19661,
+        19661
+    ],
+    "spectrum_low_limits": [
+        4096,
+        4096,
+        842,
+        576
+    ],
+    "spectrum_queue_size": 30000,
+    "spectrum_time_window": 19661,
+    "store_statistics": 2,
+    "store_waveforms": 0,
+    "store_waveforms_channels": "ABCD",
+    "time_window": 1000,
+    "trigger_channels": "A or B alt",
+    "trigger_mode": "simple",
+    "verbose": false
+}
