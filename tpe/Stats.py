@@ -7,6 +7,7 @@ import matplotlib.ticker as ticker
 from matplotlib.lines import Line2D
 from IPython.display import Markdown as md
 from scipy.signal import find_peaks
+from collections import Counter
 
 from datetime import datetime, timedelta
 from pandas import Series
@@ -19,7 +20,7 @@ def plot_peak_lines(norm, width = 2, distance = 2, threshold = 0.2):
 
 def add_calibration_line(plot, x, unit = ""):
     plot.axvline(x = x, ymin = -1, color = "g", linestyle = "--", lw = 2)
-    plot.text(x, plot.get_ylim()[1], "%s %s" % (x, unit), rotation = 90, verticalalignment = 'top', backgroundcolor="White")
+    plot.text(x, plot.get_ylim()[1], "%s %s" % (x, unit), rotation = 90, verticalalignment = 'top', backgroundcolor = "White")
 
 class Stats():
 
@@ -302,27 +303,27 @@ class Stats():
         axes[1].set_ylabel("Channel B (%s)" % ("ADC" if self.adc_kev_ratio_b == 0 else "keV"))
 
         line_width = 1
-        if self.adc_kev_ratio_a != 0:
+        if self.adc_kev_ratio_a != 0 and count > 0:
             if channel == None or channel == 0:
                 axes[1].axhline(y=self.kev_a, xmin=-1, color="g", linestyle="-", lw=line_width)
-                axes[1].text(scatter.get_xlim()[1], self.kev_a + 2, "%skeV" % self.kev_a, rotation = 0, verticalalignment = 'center', horizontalalignment = 'center', backgroundcolor = "White")
+                axes[1].text(scatter.get_xlim()[1], self.kev_a + 2, "%s keV" % self.kev_a, rotation = 0, verticalalignment = 'center', horizontalalignment = 'center', backgroundcolor = "White")
                 for val in self.calibration_lines:
                     axes[1].axhline(y=val, xmin=-1, color="g", linestyle="-", lw=line_width)
                     axes[1].text(scatter.get_xlim()[1], val + 2, "%skeV" % val, rotation = 0, verticalalignment = 'center', horizontalalignment = 'center', backgroundcolor = "White")
 
-        if self.adc_kev_ratio_b != 0:
+        if self.adc_kev_ratio_b != 0 and count > 0:
             if channel == None or channel == 1:
                 axes[1].axvline(x=self.kev_b, ymin=-1, color="g", linestyle="-", lw=line_width)
-                axes[1].text(self.kev_b, scatter.get_ylim()[1], "%skeV" % self.kev_b, rotation = 90, verticalalignment = 'top', horizontalalignment = 'center', backgroundcolor = "White")
+                axes[1].text(self.kev_b, scatter.get_ylim()[1], "%s keV" % self.kev_b, rotation = 90, verticalalignment = 'top', horizontalalignment = 'center', backgroundcolor = "White")
                 for val in self.calibration_lines:
                     axes[1].axvline(x=val, ymin=-1, color="g", linestyle="-", lw=line_width)
-                    axes[1].text(val, scatter.get_ylim()[1], "%skeV" % val, rotation = 90, verticalalignment = 'top', horizontalalignment = 'center', backgroundcolor = "White")
+                    axes[1].text(val, scatter.get_ylim()[1], "%s keV" % val, rotation = 90, verticalalignment = 'top', horizontalalignment = 'center', backgroundcolor = "White")
 
         self.remove_top_right_spines(axes)
 
     def plot_spectra(self, hide_calibration = False, *args, **kwargs):
 
-        kwargs["bins"] = kwargs["bins"] if "bins" in kwargs else self.default_bins
+        bins_a, bins_b = kwargs["bins"] if "bins" in kwargs else (self.default_bins, self.default_bins)
 
         fig, axes = plt.subplots(nrows = 1, ncols = 2)
 
@@ -334,8 +335,10 @@ class Stats():
             for axis in [ax.xaxis, ax.yaxis]:
                 axis.set_major_locator(ticker.MaxNLocator(integer = True))
 
+        kwargs["bins"] = bins_a
         a, length_a = self.spectrum_histogram_a(title = "Channel A", figsize = (16, 4), ax = axes[0], color = "Red", *args, **kwargs);
 
+        kwargs["bins"] = bins_b
         b, length_b = self.spectrum_histogram_b(title = "Channel B", figsize = (16, 4), ax = axes[1], color = "Blue", *args, **kwargs);
 
         axes[0].set_xlabel("ADC" if self.adc_kev_ratio_a == 0 else "keV")
@@ -345,14 +348,14 @@ class Stats():
 
         self.remove_top_right_spines(axes)
 
-        if self.adc_kev_ratio_a != 0 and not hide_calibration:
+        if self.adc_kev_ratio_a != 0 and not hide_calibration and length_a:
             axes[0].axvline(x=self.kev_a, ymin=-1, color="g", linestyle="--", lw=2)
             axes[0].text(self.kev_a+2, a.get_ylim()[1], "%s keV" % self.kev_a, rotation = 90, verticalalignment = 'top', backgroundcolor = "White")
             for val in self.calibration_lines:
                 axes[0].axvline(x=val, ymin=-1, color="g", linestyle="--", lw=2)
                 axes[0].text(val+2, a.get_ylim()[1], "%s keV" % val, rotation = 90, verticalalignment = 'top', backgroundcolor = "White")
 
-        if self.adc_kev_ratio_b != 0 and not hide_calibration:
+        if self.adc_kev_ratio_b != 0 and not hide_calibration and length_b:
             axes[1].axvline(x=self.kev_b, ymin=-1, color="g", linestyle="--", lw=2)
             axes[1].text(self.kev_b+2, b.get_ylim()[1], "%s keV" % self.kev_b, rotation = 90, verticalalignment = 'top', backgroundcolor = "White")
             for val in self.calibration_lines:
@@ -373,16 +376,70 @@ class Stats():
         return norm_y_ma, ax, centers
 
     def fit_spectra(self, rolling = (3, 3), *args, **kwargs):
-        kwargs["bins"] = kwargs["bins"] if "bins" in kwargs else self.default_bins
+
+        kwargs["bins"] = kwargs["bins"] if "bins" in kwargs else (self.default_bins, self.default_bins)
+
         a, b = self.plot_spectra(*args, **kwargs)
         log = "log" in kwargs and kwargs["log"]
         coincidences = "coincidences" in kwargs and kwargs["coincidences"]
         df = self.get_filtered_stats(coincidences)
+
         dfa = df[df["APulseHeight"] > 0]
-        norm_y_ma_a, plot_a, centers_a = self._fit_spectra(dfa["APulseHeight"], dfa["APulseHeight"].max(), dfa["APulseHeight"].min(), a, log, kwargs["bins"], rolling[0], "Blue", self.to_kev_a)
+        bins = kwargs["bins"][0]
+        norm_y_ma_a, plot_a, centers_a = self._fit_spectra(dfa["APulseHeight"], dfa["APulseHeight"].max(), dfa["APulseHeight"].min(), a, log, bins, rolling[0], "Blue", self.to_kev_a)
+
         dfb = df[df["BPulseHeight"] > 0]
-        norm_y_ma_b, plot_b, centers_b = self._fit_spectra(dfb["BPulseHeight"], dfb["BPulseHeight"].max(), dfb["BPulseHeight"].min(), b, log, kwargs["bins"], rolling[1], "Red", self.to_kev_b)
+        bins = kwargs["bins"][1]
+        norm_y_ma_b, plot_b, centers_b = self._fit_spectra(dfb["BPulseHeight"], dfb["BPulseHeight"].max(), dfb["BPulseHeight"].min(), b, log, bins, rolling[1], "Red", self.to_kev_b)
+
         return norm_y_ma_a, norm_y_ma_b, plot_a, plot_b, centers_a, centers_b
+
+    def plot_channel_pulse_height_spectrum(self, col, bins = 64, rolling = 1, width = .1, distance = 5, threshold = 0.000001):
+
+        fig, axes = plt.subplots(nrows = 2, ncols = 2)
+        for ax1 in axes:
+            for ax in ax1:
+                ax.yaxis.set_major_locator(ticker.LogLocator(base = 10))
+                for axis in [ax.xaxis, ax.yaxis]:
+                    axis.set_major_locator(ticker.MaxNLocator(integer = True))
+
+
+        d = self.stats[self.stats["%sPulseHeight" % col] > 0]["%sPulseHeight" % col]
+        kevf = self.to_kev_a if col == "A" else self.to_kev_b
+        d = d.apply(kevf)
+
+        v, k = np.histogram(d, bins = np.linspace(d.min(), d.max(), bins))
+        kk = k
+        plot_1 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(ax = axes[0][0], figsize = (16, 8), kind = "bar", logy = True, x = "", y = "Pulse Height", alpha = 0.5);
+        new_ticks = np.linspace(0, d.max(), 8)
+        s = pd.Series(v, index = k[:-1])
+        axes[0][0].set_xticks(np.interp(new_ticks, s.index, np.arange(s.size)))
+        axes[0][0].set_xticklabels(new_ticks.astype(int))
+
+        plot_2 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(ax = axes[0][1], figsize = (16, 8), kind = "line", color="Green", logy = True, x = "", y = "Pulse Height", alpha = 0.5);
+
+        unit = "keV" if (col == "A" and self.adc_kev_ratio_a != 0) or (col == "B" and self.adc_kev_ratio_b != 0) else "ADC"
+
+        centers = k[:-1] + np.diff(k)[0] / 2
+        norm_y = v / v.sum()
+        norm_y_ma = pd.Series(norm_y).rolling(rolling, center = True).mean().values
+        plot_3 = pd.DataFrame(norm_y_ma * d.max(), centers).plot(logy = True, figsize = (16, 8), ax = axes[1][0], marker = '.')
+        axes[1][0].legend([Line2D([0], [0], lw = 1)], ["Pulse Height Fit"])
+
+        d = Counter(d)
+        v, k = [x for x in d.values()], [x for x in d.keys()]
+        plot_4 = pd.DataFrame({unit: k, "Pulse Height": v}).plot(ax = axes[1][1], figsize = (16, 8), logy = True, color = "Red", kind = "scatter", x = unit, y = "Pulse Height", colorbar = None, alpha = 0.5, edgecolors = 'none');
+        axes[1][1].legend([Line2D([0], [0], color = "Red", lw = 1)], ["Pulse Height Scatter"])
+
+        peaks = plot_peak_lines(norm_y_ma, width = width, distance = distance, threshold = threshold)
+
+        def calibration_line(plot, x, unit = ""):
+            plot.axvline(x = x, ymin = -1, color = "g", linestyle = "--", lw = 1)
+            plot.text(x, plot.get_ylim()[0]+1, "%s %s" % (x, unit), rotation = 90, verticalalignment = 'bottom', backgroundcolor = "White")
+
+        for peak in peaks:
+            calibration_line(plot_3, int(kk[peak]), "")
+            calibration_line(plot_4, int(kk[peak]), "")
 
     def print_stats_link(self):
         return md("<br/><center><h3>Download csv file: <a target='_blank' href='https://github.com/markomanninen/tandempiercerexperiment/raw/main%s'>statistics.csv</a></h3></center>" % self.csv_filename.replace("\\\\", "/").replace("..", ""))
