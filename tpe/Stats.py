@@ -153,10 +153,10 @@ class Stats():
         return self.last_index + 1
 
     def rate_a(self):
-        return self.get_desc_value("RateA", "max")
+        return self.get_desc_value("RateA", "mean")
 
     def rate_b(self):
-        return self.get_desc_value("RateB", "max")
+        return self.get_desc_value("RateB", "mean")
 
     def total_count_a(self):
         return int(self.get_desc_value("TotA", "max"))
@@ -470,6 +470,6 @@ class Stats():
             "Total coincidences:\t\t%s" % self.total_coincidences(),
             "Single coincidences:\t\t%s" % self.single_coincidences(),
 
-            "Coincidence elapsed rate:\t%s/s" % round(self.coincidence_elapsed_rate(), 1),
+            "Coincidence elapsed rate:\t%s/s" % round(self.coincidence_elapsed_rate(), 3),
             "Coincidence sample rate:\t%s/s" % round(self.coincidence_sample_rate(), 1)
         ]));
