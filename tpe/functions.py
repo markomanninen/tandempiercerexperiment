@@ -505,12 +505,14 @@ def load_configuration(json_file):
     return result
 
 def resolution(block):
-    if block["timebase_n"] == 2:
-        return 2. / 500000000.
+    # PicoScope 2405a model 500 MS/s maximum sampling rate
+    # https://www.picotech.com/download/manuals/picoscope-2000-series-a-api-programmers-guide.pdf
+    if block["timebase_n"] < 3:
+        return 2**block["timebase_n"] / 500000000.
     else:
-        return (block["timebase_n"] - 2.) / 125000000.
+        return (block["timebase_n"] - 2.) / 62500000.
 
-def convert_samples(block):
+def samples_size(block):
     time_window = block["pre_trigger_samples"] + block["post_trigger_samples"]
     return round(time_window * resolution(block), 9)
 
@@ -566,10 +568,10 @@ def get_report_header(directory):
                 <tr><th>Pulse source</th><td>%s</td></tr>\
                 <tr><th>Pulse detection</th><td>%s</td></tr>\
                 <tr><th>Sample size</th><td>%ss</td></tr>\
-                <tr><th>Resolution</th><td>%s</td></tr>\
+                <tr><th>Resolution</th><td>%ss</td></tr>\
                 <tr><th>PicoScope trigger</th><td>%s</td></tr>\
                 <tr><th>Detector geometry</th><td>%s</td></tr>\
                 <tr><th>Front detector</th><td>%s</td></tr>\
                 <tr><th>PMT High Voltage</th><td>%s</td></tr>\
                 </table>%s%s%s" % \
-       (data["experiment_name"], data["pulse_source"], pulse_detection, convert_samples(block), resolution(block), trigger, data["detector_geometry"], front_detector, data["sca_module_settings"]["high_voltage"], instrument_details, adc_limits, picoscope_details))
+       (data["experiment_name"], data["pulse_source"], pulse_detection, samples_size(block), resolution(block), trigger, data["detector_geometry"], front_detector, data["sca_module_settings"]["high_voltage"], instrument_details, adc_limits, picoscope_details))
