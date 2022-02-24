@@ -520,6 +520,10 @@ def format_channel_data(data, channel_name, fields, keys = False):
     channel = data["sca_module_settings"][channel_name]
     return [(key.title().replace("_", " ") if keys else value) for key, value in OrderedDict([(k, channel[k]) for k in fields]).items()]
 
+def get_measurement_resolution(directory):
+    worker = load_configuration("%s\worker_configuration.json" % directory)
+    return resolution(worker["picoscope"]["block_mode_timebase_settings"])
+
 def get_report_header(directory):
 
     data = load_configuration("%s\\application_configuration.json" % directory)
@@ -558,10 +562,10 @@ def get_report_header(directory):
         picoscope_details += "\n\r<h3>PicoScope trigger details</h3>\
             <table>\
             <tr><th>Channel%s</th><td>%s</td></tr>\
-            <tr><th>Delay</th><td>%s</td></tr>\
+            <tr><th>Delay (samples)</th><td>%s</td></tr>\
             <tr><th>Direction</th><td>%s</td></tr>\
-            <tr><th>Threshold</th><td>%s</td></tr>\
-            </table>\n\r" % ((" (start)" if trig["alternate_channel"] else ""), trig["channel"], trig["delay"], trig["direction"], trig["threshold"])
+            <tr><th>Threshold (ADC)</th><td>%s</td></tr>\
+            </table>\n\r" % ((" (start)" if trig["alternate_channel"] else ""), trig["channel"], trig["delay"], trigger_direction(trig["direction"]), trig["threshold"])
 
     return md("<h2>%s</h2><h3>General settings</h3>\
                 <table>\
@@ -575,3 +579,20 @@ def get_report_header(directory):
                 <tr><th>PMT High Voltage</th><td>%s</td></tr>\
                 </table>%s%s%s" % \
        (data["experiment_name"], data["pulse_source"], pulse_detection, samples_size(block), resolution(block), trigger, data["detector_geometry"], front_detector, data["sca_module_settings"]["high_voltage"], instrument_details, adc_limits, picoscope_details))
+
+def trigger_direction(index):
+    return {
+        0: 'ABOVE', #INSIDE for gated triggers: above a threshold
+        1: 'BELOW', #OUTSIDE for gated triggers: below a threshold
+        2: 'RISING', #ENTER|NONE for threshold triggers: rising edge
+        3: 'FALLING', #EXIT for threshold triggers: falling edge
+        4: 'RISING_OR_FALLING', #ENTER_OR_EXIT for threshold triggers: either edge
+        5: 'INSIDE', #ABOVE_LOWER for window-qualified triggers: inside window
+        6: 'OUTSIDE', #BELOW_LOWER for window-qualified triggers: outside window
+        7: 'ENTER', #RISING_LOWER for window triggers: entering the window
+        8: 'EXIT', #FALLING_LOWER for window triggers: leaving the window
+        9: 'POSITIVE_RUNT',
+        10: 'POSITIVE_RUNT',
+        1000: 'LOGIC_LOWER',
+        1001: 'LOGIC_UPPER'
+    }[index]
