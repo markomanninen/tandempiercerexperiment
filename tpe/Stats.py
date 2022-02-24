@@ -9,11 +9,16 @@ from IPython.display import Markdown as md
 from scipy.signal import find_peaks
 from collections import Counter
 
+from tpe.functions import get_measurement_resolution
 from datetime import datetime, timedelta
 from pandas import Series
 import pandas as pd
 import numpy as np
 import os, glob
+
+def calibration_line(plot, x, unit = ""):
+    plot.axvline(x = x, ymin = -1, color = "g", linestyle = "--", lw = 1)
+    plot.text(x, plot.get_ylim()[0]+1, "%s %s" % (x, unit), rotation = 90, verticalalignment = 'bottom', backgroundcolor = "White")
 
 def plot_peak_lines(norm, width = 2, distance = 2, threshold = 0.2):
     return find_peaks(norm, width = width, distance = distance, threshold = threshold)[0]
@@ -62,6 +67,8 @@ class Stats():
         self.kev_b = 1
         self.default_bins = 76
         self.calibration_lines = []
+        self.calibration_lines_a = []
+        self.calibration_lines_b = []
 
     def get_experiment_stat_files(self, directory = None):
         for experiment_directory in glob.glob(self.experiment_directory if directory is None else directory):
@@ -83,9 +90,10 @@ class Stats():
 
         self.desc = df.describe()
         df['Time'] = pd.to_datetime(df['Time'], unit = 's')
-        pd.options.display.float_format = '{:,.3f}'.format
+        pd.options.display.float_format = '{:.3f}'.format
         self.last_index = len(df) - 1
         self.stats = df
+        self.resolution = get_measurement_resolution(directory)
         return self.stats
 
     def get_desc_value(self, col, row):
@@ -104,8 +112,16 @@ class Stats():
     def add_calibration_line(self, val):
         self.calibration_lines.append(val)
 
+    def add_calibration_line_a(self, val):
+        self.calibration_lines_a.append(val)
+
+    def add_calibration_line_b(self, val):
+        self.calibration_lines_b.append(val)
+
     def reset_calibration_lines(self):
         self.calibration_lines = []
+        self.calibration_lines_a = []
+        self.calibration_lines_b = []
 
     def to_kev_a(self, adc):
         return (self.adc_kev_ratio_a * adc) if self.adc_kev_ratio_a != 0 else adc
@@ -195,6 +211,7 @@ class Stats():
             return self.stats[(self.stats["Elapsed"] > elapsed[0]) & (self.stats["Elapsed"] < elapsed[1])].set_index("Elapsed")[cols].plot(*args, **kwargs)
 
     def scatter(self, time_difference = None, channel = None, *args, **kwargs):
+
         df = self.stats[self.stats["Cnc"] == 1].copy()
 
         if time_difference is not None:
@@ -210,10 +227,22 @@ class Stats():
         df['APulseHeight'] = df.loc[:, ('APulseHeight')].apply(self.to_kev_a)
         df['BPulseHeight'] = df.loc[:, ('BPulseHeight')].apply(self.to_kev_b)
 
+        max_time_difference = df['TimeDifference'].apply(lambda x: abs(x)).max()
+        max_time_difference = 500
+        size_ratio = 8
+
+        def plot_size(x):
+            diff = max_time_difference - abs(x)
+            size = (max_time_difference / diff) if diff > 0 else max_time_difference
+            return np.log2(size * size_ratio) * size_ratio
+
+        df['TimeDifferenceSize'] = df.loc[:, ('TimeDifference')].apply(plot_size)
+
         return df.plot(
             kind = "scatter",
             x = "APulseHeight",
             y = "BPulseHeight",
+            s = "TimeDifferenceSize",
             colorbar = None,
             alpha = 0.5,
             edgecolors = 'none',
@@ -229,6 +258,7 @@ class Stats():
         if channel is not None:
             df = df[df["Chn"] == channel]
 
+        df["TimeDifference"] = df["TimeDifference"].apply(lambda x: x * self.resolution)
         return self.histogram(df["TimeDifference"], kind = "hist", *args, **kwargs)
 
     def histogram(self, df, *args, **kwargs):
@@ -257,7 +287,7 @@ class Stats():
             axis.set_major_locator(ticker.MaxNLocator(integer=True))
         df = self.stats
         a = df.groupby(df['Elapsed'].apply(lambda x: round(x/sec))).count()
-        a[["A", "B"]].plot(kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
+        a[["A", "B"]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
         ax.set_xlabel("Elapsed time (%ss)" % sec)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
@@ -288,35 +318,37 @@ class Stats():
 
         self.remove_top_right_spines(axes)
 
-    def plot_time_histogram_and_scatter(self, time_difference = None, channel = None, *args, **kwargs):
+    def plot_time_histogram_and_scatter(self, hide_calibration = False, time_difference = None, channel = None, *args, **kwargs):
 
         fig, axes = plt.subplots(nrows = 1, ncols = 2)
         for axis in [axes[0].xaxis, axes[0].yaxis]:
             axis.set_major_locator(ticker.MaxNLocator(integer = True))
 
         histogram, count = self.time_difference_histogram(time_difference = time_difference, channel = channel, title = "Coincidence time difference", figsize = (16, 6), ax = axes[0], bins = self.default_bins)
-        axes[0].set_xlabel("Time (ns)")
+        axes[0].set_xlabel("Time (s)")
         axes[0].set_ylabel("Count (%s)" % count)
 
-        scatter = self.scatter(time_difference = time_difference, channel = channel, title = "Coincidence scatter", figsize = (16, 6), ax = axes[1])
+        scatter = self.scatter(time_difference = time_difference, channel = channel, title = "Coincidence scatter", figsize = (16, 6), ax = axes[1], grid=False)
         axes[1].set_xlabel("Channel A (%s)" % ("ADC" if self.adc_kev_ratio_a == 0 else "keV"))
         axes[1].set_ylabel("Channel B (%s)" % ("ADC" if self.adc_kev_ratio_b == 0 else "keV"))
 
         line_width = 1
         if self.adc_kev_ratio_a != 0 and count > 0:
             if channel == None or channel == 0:
-                axes[1].axhline(y=self.kev_a, xmin=-1, color="g", linestyle="-", lw=line_width)
-                axes[1].text(scatter.get_xlim()[1], self.kev_a + 2, "%s keV" % self.kev_a, rotation = 0, verticalalignment = 'center', horizontalalignment = 'center', backgroundcolor = "White")
-                for val in self.calibration_lines:
-                    axes[1].axhline(y=val, xmin=-1, color="g", linestyle="-", lw=line_width)
+                if not hide_calibration:
+                    axes[1].axhline(y=self.kev_a, xmin=-1, color="g", linestyle="--", lw=line_width)
+                    axes[1].text(scatter.get_xlim()[1], self.kev_a + 2, "%s keV" % self.kev_a, rotation = 0, verticalalignment = 'center', horizontalalignment = 'center', backgroundcolor = "White")
+                for val in self.calibration_lines_a:
+                    axes[1].axhline(y=val, xmin=-1, color="g", linestyle="--", lw=line_width)
                     axes[1].text(scatter.get_xlim()[1], val + 2, "%skeV" % val, rotation = 0, verticalalignment = 'center', horizontalalignment = 'center', backgroundcolor = "White")
 
         if self.adc_kev_ratio_b != 0 and count > 0:
             if channel == None or channel == 1:
-                axes[1].axvline(x=self.kev_b, ymin=-1, color="g", linestyle="-", lw=line_width)
-                axes[1].text(self.kev_b, scatter.get_ylim()[1], "%s keV" % self.kev_b, rotation = 90, verticalalignment = 'top', horizontalalignment = 'center', backgroundcolor = "White")
-                for val in self.calibration_lines:
-                    axes[1].axvline(x=val, ymin=-1, color="g", linestyle="-", lw=line_width)
+                if not hide_calibration:
+                    axes[1].axvline(x=self.kev_b, ymin=-1, color="g", linestyle="--", lw=line_width)
+                    axes[1].text(self.kev_b, scatter.get_ylim()[1], "%s keV" % self.kev_b, rotation = 90, verticalalignment = 'top', horizontalalignment = 'center', backgroundcolor = "White")
+                for val in self.calibration_lines_b:
+                    axes[1].axvline(x=val, ymin=-1, color="g", linestyle="--", lw=line_width)
                     axes[1].text(val, scatter.get_ylim()[1], "%s keV" % val, rotation = 90, verticalalignment = 'top', horizontalalignment = 'center', backgroundcolor = "White")
 
         self.remove_top_right_spines(axes)
@@ -348,17 +380,19 @@ class Stats():
 
         self.remove_top_right_spines(axes)
 
-        if self.adc_kev_ratio_a != 0 and not hide_calibration and length_a:
-            axes[0].axvline(x=self.kev_a, ymin=-1, color="g", linestyle="--", lw=2)
-            axes[0].text(self.kev_a+2, a.get_ylim()[1], "%s keV" % self.kev_a, rotation = 90, verticalalignment = 'top', backgroundcolor = "White")
-            for val in self.calibration_lines:
+        if self.adc_kev_ratio_a != 0 and length_a:
+            if not hide_calibration:
+                axes[0].axvline(x=self.kev_a, ymin=-1, color="g", linestyle="--", lw=2)
+                axes[0].text(self.kev_a+2, a.get_ylim()[1], "%s keV" % self.kev_a, rotation = 90, verticalalignment = 'top', backgroundcolor = "White")
+            for val in self.calibration_lines_a:
                 axes[0].axvline(x=val, ymin=-1, color="g", linestyle="--", lw=2)
                 axes[0].text(val+2, a.get_ylim()[1], "%s keV" % val, rotation = 90, verticalalignment = 'top', backgroundcolor = "White")
 
-        if self.adc_kev_ratio_b != 0 and not hide_calibration and length_b:
-            axes[1].axvline(x=self.kev_b, ymin=-1, color="g", linestyle="--", lw=2)
-            axes[1].text(self.kev_b+2, b.get_ylim()[1], "%s keV" % self.kev_b, rotation = 90, verticalalignment = 'top', backgroundcolor = "White")
-            for val in self.calibration_lines:
+        if self.adc_kev_ratio_b != 0 and length_b:
+            if not hide_calibration:
+                axes[1].axvline(x=self.kev_b, ymin=-1, color="g", linestyle="--", lw=2)
+                axes[1].text(self.kev_b+2, b.get_ylim()[1], "%s keV" % self.kev_b, rotation = 90, verticalalignment = 'top', backgroundcolor = "White")
+            for val in self.calibration_lines_b:
                 axes[1].axvline(x=val, ymin=-1, color="g", linestyle="--", lw=2)
                 axes[1].text(val+2, b.get_ylim()[1], "%s keV" % val, rotation = 90, verticalalignment = 'top', backgroundcolor = "White")
 
@@ -394,52 +428,87 @@ class Stats():
 
         return norm_y_ma_a, norm_y_ma_b, plot_a, plot_b, centers_a, centers_b
 
-    def plot_channel_pulse_height_spectrum(self, col, bins = 64, rolling = 1, width = .1, distance = 5, threshold = 0.000001):
+    def plot_channel_pulse_height_spectrum(self, col, coincidences = False, bins = 64, rolling = 1, width = .1, distance = 5, threshold = 0.000001):
 
         fig, axes = plt.subplots(nrows = 2, ncols = 2)
-        for ax1 in axes:
-            for ax in ax1:
-                ax.yaxis.set_major_locator(ticker.LogLocator(base = 10))
-                for axis in [ax.xaxis, ax.yaxis]:
-                    axis.set_major_locator(ticker.MaxNLocator(integer = True))
+        for axis in axes:
+            for ax in axis:
+                ax.xaxis.set_major_locator(ticker.MaxNLocator(integer = True))
 
+        d = self.stats
+        if coincidences:
+            d = d[d["TimeDifference"]>0]
 
-        d = self.stats[self.stats["%sPulseHeight" % col] > 0]["%sPulseHeight" % col]
+        d = d[d["%sPulseHeight" % col] > 0]["%sPulseHeight" % col]
+
         kevf = self.to_kev_a if col == "A" else self.to_kev_b
         d = d.apply(kevf)
 
         v, k = np.histogram(d, bins = np.linspace(d.min(), d.max(), bins))
         kk = k
-        plot_1 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(ax = axes[0][0], figsize = (16, 8), kind = "bar", logy = True, x = "", y = "Pulse Height", alpha = 0.5);
+        plot_1 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(
+            ax = axes[0][0],
+            figsize = (16, 8),
+            kind = "bar",
+            logy = True,
+            x = "",
+            y = "Pulse Height",
+            alpha = 0.5
+        );
+
         new_ticks = np.linspace(0, d.max(), 8)
         s = pd.Series(v, index = k[:-1])
         axes[0][0].set_xticks(np.interp(new_ticks, s.index, np.arange(s.size)))
         axes[0][0].set_xticklabels(new_ticks.astype(int))
 
-        plot_2 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(ax = axes[0][1], figsize = (16, 8), kind = "line", color="Green", logy = True, x = "", y = "Pulse Height", alpha = 0.5);
+        plot_2 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(
+            ax = axes[0][1],
+            figsize = (16, 8),
+            kind = "line",
+            color="Green",
+            logy = True,
+            x = "",
+            y = "Pulse Height",
+            alpha = 0.5
+        );
 
         unit = "keV" if (col == "A" and self.adc_kev_ratio_a != 0) or (col == "B" and self.adc_kev_ratio_b != 0) else "ADC"
 
         centers = k[:-1] + np.diff(k)[0] / 2
         norm_y = v / v.sum()
-        norm_y_ma = pd.Series(norm_y).rolling(rolling, center = True).mean().values
-        plot_3 = pd.DataFrame(norm_y_ma * d.max(), centers).plot(logy = True, figsize = (16, 8), ax = axes[1][0], marker = '.')
+        norm_y_ma = pd.Series(norm_y).rolling(rolling, center = True).mean().round(8).values
+        plot_3 = pd.DataFrame(norm_y_ma * v.sum(), centers).plot(
+            logy = True,
+            figsize = (16, 8),
+            ax = axes[1][0],
+            marker = '.',
+            xlabel = unit
+        )
         axes[1][0].legend([Line2D([0], [0], lw = 1)], ["Pulse Height Fit"])
 
         d = Counter(d)
         v, k = [x for x in d.values()], [x for x in d.keys()]
-        plot_4 = pd.DataFrame({unit: k, "Pulse Height": v}).plot(ax = axes[1][1], figsize = (16, 8), logy = True, color = "Red", kind = "scatter", x = unit, y = "Pulse Height", colorbar = None, alpha = 0.5, edgecolors = 'none');
+        plot_4 = pd.DataFrame({unit: k, "Pulse Height": v}).plot(
+            ax = axes[1][1],
+            figsize = (16, 8),
+            logy = True,
+            color = "Red",
+            kind = "scatter",
+            x = unit,
+            y = "Pulse Height",
+            colorbar = None,
+            alpha = 0.5,
+            edgecolors = 'none'
+        );
         axes[1][1].legend([Line2D([0], [0], color = "Red", lw = 1)], ["Pulse Height Scatter"])
 
         peaks = plot_peak_lines(norm_y_ma, width = width, distance = distance, threshold = threshold)
 
-        def calibration_line(plot, x, unit = ""):
-            plot.axvline(x = x, ymin = -1, color = "g", linestyle = "--", lw = 1)
-            plot.text(x, plot.get_ylim()[0]+1, "%s %s" % (x, unit), rotation = 90, verticalalignment = 'bottom', backgroundcolor = "White")
-
         for peak in peaks:
-            calibration_line(plot_3, int(kk[peak]), "")
-            calibration_line(plot_4, int(kk[peak]), "")
+            calibration_line(plot_3, int(centers[peak]), "")
+            calibration_line(plot_4, int(centers[peak]), "")
+
+        return [centers[peak] for peak in peaks]
 
     def print_stats_link(self):
         return md("<br/><center><h3>Download csv file: <a target='_blank' href='https://github.com/markomanninen/tandempiercerexperiment/raw/main%s'>statistics.csv</a></h3></center>" % self.csv_filename.replace("\\\\", "/").replace("..", ""))
@@ -459,8 +528,8 @@ class Stats():
             "Total count A:\t%s" % self.total_count_a(),
             "Total count B:\t%s" % self.total_count_b(),
 
-            "Elapsed rate A:\t%s/s" % round(self.total_count_a()/self.time_elapsed(), 1),
-            "Elapsed rate B:\t%s/s" % round(self.total_count_b()/self.time_elapsed(), 1),
+            "Elapsed rate A:\t%s/s" % round(self.total_count_a()/self.time_elapsed(), 3),
+            "Elapsed rate B:\t%s/s" % round(self.total_count_b()/self.time_elapsed(), 3),
 
             "Sample rate A:\t%s/s" % round(self.rate_a(), 1),
             "Sample rate B:\t%s/s" % round(self.rate_b(), 1),
@@ -471,5 +540,5 @@ class Stats():
             "Single coincidences:\t\t%s" % self.single_coincidences(),
 
             "Coincidence elapsed rate:\t%s/s" % round(self.coincidence_elapsed_rate(), 3),
-            "Coincidence sample rate:\t%s/s" % round(self.coincidence_sample_rate(), 1)
+            "Coincidence sample rate:\t%s/s" % round(self.coincidence_sample_rate(), 2)
         ]));

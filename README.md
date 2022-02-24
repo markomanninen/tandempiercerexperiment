@@ -6,15 +6,15 @@ Library currently in alpha development state.
 
 Run with built-in simulator:
 
-$ python run.py
+`$ python run.py`
 
 Run with playback file:
 
-$ python run.py --playback_file=tpe_playback_2021_12_21_17_42.dat
+`$ python run.py --playback_file=tpe_playback_2021_12_21_17_42.dat`
 
 Run with PicoScope model 2000a:
 
-$ python run.py --pulse_source="Background" --store_statistics=2 --pulse_detection_mode=0 --simple_trigger=1 --timebase=2 --pre_trigger_samples=5000 --post_trigger_samples=5000 --execution_time=10800 --experiment_name="Detectors on top of each other - Alternating trigger 2ns" --simple_trigger_alternate=1 --detector_geometry=top
+`$ python run.py --pulse_source="Background" --store_statistics=2 --pulse_detection_mode=0 --simple_trigger=1 --timebase=2 --pre_trigger_samples=5000 --post_trigger_samples=5000 --execution_time=10800 --experiment_name="Detectors on top of each other - Alternating trigger 2ns" --simple_trigger_alternate=1 --detector_geometry=top`
 
 ---
 
@@ -32,6 +32,15 @@ Individual measurement reports:
 - [TPE measurement report - detectors next to each other - 2ns 3h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20report%20-%20detectors%20next%20to%20each%20other%20-%202ns%203h.ipynb)
 - [TPE measurement report - detectors on top of each other - 4ms 6h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20report%20-%20detectors%20on%20top%20of%20each%20other.ipynb)
 - [TPE measurement report - detectors on top of each other - 2ns 3h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20report%20-%20detectors%20on%20top%20of%20each%20other%20-%202ns%203h.ipynb)
+
+Background measurements:
+
+- [TPE measurement report - detectors apart from each other - 8ns 6h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20Report%20-%20Background%20apart%20geometry.ipynb)
+- [TPE measurement report - detectors on next to each other - 8ns 6h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20Report%20-%20Background%20next%20geometry.ipynb)
+- [TPE measurement report - detectors on top of each other - 8ns 6h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20Report%20-%20Background%20top%20geometry.ipynb)
+- [TPE measurement report - detectors on true geometry - 8ns 6h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20Report%20-%20Background%20true%20geometry.ipynb)
+- [TPE measurement report - detectors on tandem geometry - 8ns 6h](https://nbviewer.org/github/markomanninen/tandempiercerexperiment/blob/main/report_template/TPE%20Report%20-%20Background%20tandem%20%20geometry.ipynb)
+
 
 ## Usage
 
