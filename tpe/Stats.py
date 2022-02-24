@@ -90,7 +90,7 @@ class Stats():
 
         self.desc = df.describe()
         df['Time'] = pd.to_datetime(df['Time'], unit = 's')
-        pd.options.display.float_format = '{:,.3f}'.format
+        pd.options.display.float_format = '{:.3f}'.format
         self.last_index = len(df) - 1
         self.stats = df
         self.resolution = get_measurement_resolution(directory)
@@ -287,7 +287,7 @@ class Stats():
             axis.set_major_locator(ticker.MaxNLocator(integer=True))
         df = self.stats
         a = df.groupby(df['Elapsed'].apply(lambda x: round(x/sec))).count()
-        a[["A", "B"]].plot(kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
+        a[["A", "B"]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
         ax.set_xlabel("Elapsed time (%ss)" % sec)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
@@ -431,11 +431,9 @@ class Stats():
     def plot_channel_pulse_height_spectrum(self, col, coincidences = False, bins = 64, rolling = 1, width = .1, distance = 5, threshold = 0.000001):
 
         fig, axes = plt.subplots(nrows = 2, ncols = 2)
-        for ax1 in axes:
-            for ax in ax1:
-                ax.yaxis.set_major_locator(ticker.LogLocator(base = 10))
-                for axis in [ax.xaxis, ax.yaxis]:
-                    axis.set_major_locator(ticker.MaxNLocator(integer = True))
+        for axis in axes:
+            for ax in axis:
+                ax.xaxis.set_major_locator(ticker.MaxNLocator(integer = True))
 
         d = self.stats
         if coincidences:
@@ -448,25 +446,60 @@ class Stats():
 
         v, k = np.histogram(d, bins = np.linspace(d.min(), d.max(), bins))
         kk = k
-        plot_1 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(ax = axes[0][0], figsize = (16, 8), kind = "bar", logy = True, x = "", y = "Pulse Height", alpha = 0.5);
+        plot_1 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(
+            ax = axes[0][0],
+            figsize = (16, 8),
+            kind = "bar",
+            logy = True,
+            x = "",
+            y = "Pulse Height",
+            alpha = 0.5
+        );
+
         new_ticks = np.linspace(0, d.max(), 8)
         s = pd.Series(v, index = k[:-1])
         axes[0][0].set_xticks(np.interp(new_ticks, s.index, np.arange(s.size)))
         axes[0][0].set_xticklabels(new_ticks.astype(int))
 
-        plot_2 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(ax = axes[0][1], figsize = (16, 8), kind = "line", color="Green", logy = True, x = "", y = "Pulse Height", alpha = 0.5);
+        plot_2 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(
+            ax = axes[0][1],
+            figsize = (16, 8),
+            kind = "line",
+            color="Green",
+            logy = True,
+            x = "",
+            y = "Pulse Height",
+            alpha = 0.5
+        );
 
         unit = "keV" if (col == "A" and self.adc_kev_ratio_a != 0) or (col == "B" and self.adc_kev_ratio_b != 0) else "ADC"
 
         centers = k[:-1] + np.diff(k)[0] / 2
         norm_y = v / v.sum()
-        norm_y_ma = pd.Series(norm_y).rolling(rolling, center = True).mean().values
-        plot_3 = pd.DataFrame(norm_y_ma * d.max(), centers).plot(logy = True, figsize = (16, 8), ax = axes[1][0], marker = '.', xlabel = unit)
+        norm_y_ma = pd.Series(norm_y).rolling(rolling, center = True).mean().round(8).values
+        plot_3 = pd.DataFrame(norm_y_ma * v.sum(), centers).plot(
+            logy = True,
+            figsize = (16, 8),
+            ax = axes[1][0],
+            marker = '.',
+            xlabel = unit
+        )
         axes[1][0].legend([Line2D([0], [0], lw = 1)], ["Pulse Height Fit"])
 
         d = Counter(d)
         v, k = [x for x in d.values()], [x for x in d.keys()]
-        plot_4 = pd.DataFrame({unit: k, "Pulse Height": v}).plot(ax = axes[1][1], figsize = (16, 8), logy = True, color = "Red", kind = "scatter", x = unit, y = "Pulse Height", colorbar = None, alpha = 0.5, edgecolors = 'none');
+        plot_4 = pd.DataFrame({unit: k, "Pulse Height": v}).plot(
+            ax = axes[1][1],
+            figsize = (16, 8),
+            logy = True,
+            color = "Red",
+            kind = "scatter",
+            x = unit,
+            y = "Pulse Height",
+            colorbar = None,
+            alpha = 0.5,
+            edgecolors = 'none'
+        );
         axes[1][1].legend([Line2D([0], [0], color = "Red", lw = 1)], ["Pulse Height Scatter"])
 
         peaks = plot_peak_lines(norm_y_ma, width = width, distance = distance, threshold = threshold)
@@ -495,8 +528,8 @@ class Stats():
             "Total count A:\t%s" % self.total_count_a(),
             "Total count B:\t%s" % self.total_count_b(),
 
-            "Elapsed rate A:\t%s/s" % round(self.total_count_a()/self.time_elapsed(), 1),
-            "Elapsed rate B:\t%s/s" % round(self.total_count_b()/self.time_elapsed(), 1),
+            "Elapsed rate A:\t%s/s" % round(self.total_count_a()/self.time_elapsed(), 3),
+            "Elapsed rate B:\t%s/s" % round(self.total_count_b()/self.time_elapsed(), 3),
 
             "Sample rate A:\t%s/s" % round(self.rate_a(), 1),
             "Sample rate B:\t%s/s" % round(self.rate_b(), 1),
@@ -506,6 +539,6 @@ class Stats():
             "Total coincidences:\t\t%s" % self.total_coincidences(),
             "Single coincidences:\t\t%s" % self.single_coincidences(),
 
-            "Coincidence elapsed rate:\t%s/s" % round(self.coincidence_elapsed_rate(), 1),
-            "Coincidence sample rate:\t%s/s" % round(self.coincidence_sample_rate(), 1)
+            "Coincidence elapsed rate:\t%s/s" % round(self.coincidence_elapsed_rate(), 3),
+            "Coincidence sample rate:\t%s/s" % round(self.coincidence_sample_rate(), 2)
         ]));
