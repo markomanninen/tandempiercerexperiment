@@ -524,6 +524,12 @@ def get_measurement_resolution(directory):
     worker = load_configuration("%s\worker_configuration.json" % directory)
     return resolution(worker["picoscope"]["block_mode_timebase_settings"])
 
+def get_measurement_configurations(directory):
+    return {
+        'application': load_configuration("%s\\application_configuration.json" % directory),
+        'worker': load_configuration("%s\worker_configuration.json" % directory)
+    }
+
 def get_report_header(directory):
 
     data = load_configuration("%s\\application_configuration.json" % directory)
@@ -597,6 +603,7 @@ def trigger_direction(index):
         1001: 'LOGIC_UPPER'
     }[index]
 
+
 # h
 planck_constant = 6.62607015e-34 # Js
 # c
@@ -616,11 +623,11 @@ def conversion_table(pd, peaks_a, peaks_b, labels, kevs, indices):
 
     df = pd.DataFrame({
         "": labels,
-        "keV": kevs,
+        "Energy (keV)": kevs,
         "Wavelength (nm)": [round(kev_to_wavelength(peak), 1) for peak in kevs],
         "Frequency (s)": [int(kev_to_frequency(peak)) for peak in kevs],
-        "ADC (A)": [int(peaks_a[ind]) for ind in indices],
-        "ADC (B)": [int(peaks_b[ind]) for ind in indices]
+        "Channel A (ADC)": [int(peaks_a[ind]) for ind in indices],
+        "Channel B (ADC)": [int(peaks_b[ind]) for ind in indices]
     }).set_index("")
 
     df['Frequency (s)'] = df.apply(lambda x: "{:,.0f}".format(x['Frequency (s)']), axis=1)

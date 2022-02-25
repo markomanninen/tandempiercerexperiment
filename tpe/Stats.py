@@ -9,7 +9,7 @@ from IPython.display import Markdown as md
 from scipy.signal import find_peaks
 from collections import Counter
 
-from tpe.functions import get_measurement_resolution
+from tpe.functions import get_measurement_resolution, get_measurement_configurations
 from datetime import datetime, timedelta
 from pandas import Series
 import pandas as pd
@@ -79,6 +79,9 @@ class Stats():
     def print_experiment_stat_files(self, directory = None):
         return list(map(print, self.get_experiment_stat_files(directory)))
 
+    def get_experiment_directories(self, directory = None):
+        return glob.glob(self.experiment_directory if directory is None else directory)
+
     def read_stats_dataframe(self, directory, filter = False):
         self.csv_filename = "%s\statistics.csv" % directory
         df = pd.read_csv(self.csv_filename, sep = ";", names = self.headers)
@@ -94,6 +97,7 @@ class Stats():
         self.last_index = len(df) - 1
         self.stats = df
         self.resolution = get_measurement_resolution(directory)
+        self.measurement_settings = get_measurement_configurations(directory)
         return self.stats
 
     def get_desc_value(self, col, row):
@@ -428,12 +432,59 @@ class Stats():
 
         return norm_y_ma_a, norm_y_ma_b, plot_a, plot_b, centers_a, centers_b
 
+    def summary_plots(self):
+
+        fig, axes = plt.subplots(nrows=1, ncols=3)
+        for axis in axes:
+            axis.set_axis_off()
+
+        unit = "ADC"
+
+        d = self.stats
+        d = d[d["APulseHeight"] > 0]["APulseHeight"]
+        d = Counter(d)
+
+        v, k = [x for x in d.values()], [x for x in d.keys()]
+        plot_1 = pd.DataFrame({unit: k, "Pulse Height": v}).plot(
+            ax = axes[0],
+            figsize = (8, 3),
+            logy = True,
+            kind = "scatter",
+            x = unit,
+            y = "Pulse Height",
+            colorbar = None,
+            edgecolors = 'none',
+            alpha = 0.5,
+            color = "red"
+        );
+
+        d = self.stats
+        d = d[d["BPulseHeight"] > 0]["BPulseHeight"]
+        d = Counter(d)
+
+        v, k = [x for x in d.values()], [x for x in d.keys()]
+        plot_2 = pd.DataFrame({unit: k, "Pulse Height": v}).plot(
+            ax = plot_1,
+            logy = True,
+            kind = "scatter",
+            x = unit,
+            y = "Pulse Height",
+            colorbar = None,
+            edgecolors = 'none',
+            alpha = 0.5,
+            color = "blue"
+        );
+
+        self.scatter(figsize=(8, 3), ax=axes[1])
+
+        self.time_difference_histogram(figsize=(16, 3), ax=axes[2], bins=self.default_bins)
+
+
     def plot_channel_pulse_height_spectrum(self, col, coincidences = False, bins = 64, rolling = 1, width = .1, distance = 5, threshold = 0.000001):
 
-        fig, axes = plt.subplots(nrows = 2, ncols = 2)
+        fig, axes = plt.subplots(nrows = 1, ncols = 2)
         for axis in axes:
-            for ax in axis:
-                ax.xaxis.set_major_locator(ticker.MaxNLocator(integer = True))
+            axis.xaxis.set_major_locator(ticker.MaxNLocator(integer = True))
 
         d = self.stats
         if coincidences:
@@ -441,66 +492,73 @@ class Stats():
 
         d = d[d["%sPulseHeight" % col] > 0]["%sPulseHeight" % col]
 
+        color = "blue"
+        if col == "A":
+            color = "red"
+
+        line_width = 2
+
         kevf = self.to_kev_a if col == "A" else self.to_kev_b
         d = d.apply(kevf)
 
         v, k = np.histogram(d, bins = np.linspace(d.min(), d.max(), bins))
-        kk = k
+        vv, kk = v, k
         plot_1 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(
-            ax = axes[0][0],
-            figsize = (16, 8),
+            ax = axes[0],
+            figsize = (16, 4),
             kind = "bar",
             logy = True,
             x = "",
             y = "Pulse Height",
-            alpha = 0.5
+            alpha = 0.5,
+            color = color
         );
 
-        new_ticks = np.linspace(0, d.max(), 8)
-        s = pd.Series(v, index = k[:-1])
-        axes[0][0].set_xticks(np.interp(new_ticks, s.index, np.arange(s.size)))
-        axes[0][0].set_xticklabels(new_ticks.astype(int))
-
-        plot_2 = pd.DataFrame({"": k[:-1].astype(int), "Pulse Height": v}).plot(
-            ax = axes[0][1],
-            figsize = (16, 8),
-            kind = "line",
-            color="Green",
-            logy = True,
-            x = "",
-            y = "Pulse Height",
-            alpha = 0.5
-        );
+        axes[0].legend([Line2D([0], [0], color = color, lw = line_width)], ["Pulse Height Histogram"])
 
         unit = "keV" if (col == "A" and self.adc_kev_ratio_a != 0) or (col == "B" and self.adc_kev_ratio_b != 0) else "ADC"
 
-        centers = k[:-1] + np.diff(k)[0] / 2
-        norm_y = v / v.sum()
-        norm_y_ma = pd.Series(norm_y).rolling(rolling, center = True).mean().round(8).values
-        plot_3 = pd.DataFrame(norm_y_ma * v.sum(), centers).plot(
-            logy = True,
-            figsize = (16, 8),
-            ax = axes[1][0],
-            marker = '.',
-            xlabel = unit
-        )
-        axes[1][0].legend([Line2D([0], [0], lw = 1)], ["Pulse Height Fit"])
+        new_ticks = np.linspace(0, d.max(), 8)
+        s = pd.Series(v, index = k[:-1])
+        axes[0].set_xticks(np.interp(new_ticks, s.index, np.arange(s.size)))
+        axes[0].set_xticklabels(new_ticks.astype(int))
 
         d = Counter(d)
+
+        print("Maximum bins: %s" % len(d))
+
         v, k = [x for x in d.values()], [x for x in d.keys()]
         plot_4 = pd.DataFrame({unit: k, "Pulse Height": v}).plot(
-            ax = axes[1][1],
-            figsize = (16, 8),
+            ax = axes[1],
+            figsize = (16, 4),
             logy = True,
-            color = "Red",
             kind = "scatter",
             x = unit,
             y = "Pulse Height",
             colorbar = None,
+            edgecolors = 'none',
             alpha = 0.5,
-            edgecolors = 'none'
+            color = color
         );
-        axes[1][1].legend([Line2D([0], [0], color = "Red", lw = 1)], ["Pulse Height Scatter"])
+        axes[1].legend([Line2D([0], [0], color = color, lw = line_width)], ["Pulse Height Scatter"])
+
+        fig, axis = plt.subplots(nrows = 1, ncols = 1)
+        axis.xaxis.set_major_locator(ticker.MaxNLocator(integer = True))
+
+        centers = kk[:-1] + np.diff(kk)[0] / 2
+        ss =  vv.sum()
+        norm_y = vv / ss
+        norm_y_ma = pd.Series(norm_y).rolling(rolling, center = True).mean().round(8).values
+        plot_3 = pd.DataFrame(norm_y_ma * ss, centers).plot(
+            logy = True,
+            figsize = (8, 4),
+            ax = axis,
+            marker = '.',
+            xlabel = unit,
+            color = color,
+            alpha = 0.5
+        );
+        axis.legend([Line2D([0], [0], color = color, lw = line_width)], ["Pulse Height Fit"])
 
         peaks = plot_peak_lines(norm_y_ma, width = width, distance = distance, threshold = threshold)
 
@@ -510,18 +568,65 @@ class Stats():
 
         return [centers[peak] for peak in peaks]
 
+    def summary_row(self):
+        settings = self.measurement_settings["application"]
+        return md(
+            "<table><thead>\
+                <tr>\
+                    <th>Measurement</th>\
+                    <th>Started</th>\
+                    <th>Duration</th>\
+                    <th>Source</th>\
+                    <th>Geometry</th>\
+                    <th>Resolution</th>\
+                    <th>Rows</th>\
+                    <th>Coincidences</th>\
+                </tr></thead><tbody>\
+                <tr>\
+                <td><b>%s</b></td>\
+                <td>%s</td>\
+                <td>%s</td>\
+                <td>%s</td>\
+                <td>%s</td>\
+                <td>%s</td>\
+                <td>%s</td>\
+                <td>%s</td>\
+            </tr></tbody></table>" % (
+                settings["experiment_name"],
+                self.start_time_str(),
+                self.time_elapsed_str(),
+                settings["pulse_source"],
+                settings["detector_geometry"],
+                self.resolution,
+                self.rows_count(),
+                self.total_coincidences()
+            )
+        )
+
+    def stats_github_link(self):
+        return 'https://github.com/markomanninen/tandempiercerexperiment/raw/main%s' % self.csv_filename.replace("\\\\", "/").replace("..", "")
+
     def print_stats_link(self):
-        return md("<br/><center><h3>Download csv file: <a target='_blank' href='https://github.com/markomanninen/tandempiercerexperiment/raw/main%s'>statistics.csv</a></h3></center>" % self.csv_filename.replace("\\\\", "/").replace("..", ""))
+        return md("<br/><center><h3>Download csv file: <a target='_blank' href='%s'>statistics.csv</a></h3></center>" % self.stats_github_link())
+
+    def start_time_str(self):
+        return str(self.start_time()).split(".")[0]
+
+    def end_time_str(self):
+        return str(self.end_time()).split(".")[0]
+
+    def time_elapsed_str(self):
+        return timedelta(seconds = int(self.time_elapsed()))
 
     def print_basic_data(self):
         return list(map(print, [
 
             "\r\n",
 
-            "Start time:\t%s" % str(self.start_time()).split(".")[0],
-            "End time:\t%s" % str(self.end_time()).split(".")[0],
+            "Start time:\t%s" % self.start_time_str(),
+            "End time:\t%s" % self.end_time_str(),
 
-            "Time elapsed:\t%s" % timedelta(seconds = int(self.time_elapsed())),
+            "Time elapsed:\t%s" % self.time_elapsed_str(),
 
             "Rows count:\t%s" % self.rows_count(),
 
