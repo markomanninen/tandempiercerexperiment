@@ -200,10 +200,10 @@ class Stats():
         return self.stats["Time"][self.last_index]
 
     def coincidence_elapsed_rate(self):
-        return self.get_desc_value("ElapsedCncRate", "max")
+        return self.get_desc_value("ElapsedCncRate", "mean")
 
     def coincidence_sample_rate(self):
-        return self.get_desc_value("SampleCncRate", "max")
+        return self.get_desc_value("SampleCncRate", "mean")
 
     def info(self):
         return self.stats.info()
@@ -214,7 +214,7 @@ class Stats():
         else:
             return self.stats[(self.stats["Elapsed"] > elapsed[0]) & (self.stats["Elapsed"] < elapsed[1])].set_index("Elapsed")[cols].plot(*args, **kwargs)
 
-    def scatter(self, time_difference = None, channel = None, *args, **kwargs):
+    def scatter(self, time_difference=None, channel=None, low=None, high=None, *args, **kwargs):
 
         df = self.stats[self.stats["Cnc"] == 1].copy()
 
@@ -230,6 +230,14 @@ class Stats():
 
         df['APulseHeight'] = df.loc[:, ('APulseHeight')].apply(self.to_kev_a)
         df['BPulseHeight'] = df.loc[:, ('BPulseHeight')].apply(self.to_kev_b)
+
+        if low is not None:
+            df = df[df["APulseHeight"] > low[0]]
+            df = df[df["BPulseHeight"] > low[1]]
+
+        if high is not None:
+            df = df[df["APulseHeight"] < high[0]]
+            df = df[df["BPulseHeight"] < high[1]]
 
         max_time_difference = df['TimeDifference'].apply(lambda x: abs(x)).max()
         max_time_difference = 500
@@ -253,7 +261,7 @@ class Stats():
             *args, **kwargs
         )
 
-    def time_difference_histogram(self, time_difference = None, channel = None, *args, **kwargs):
+    def time_difference_histogram(self, time_difference=None, channel=None, low=None, high=None, *args, **kwargs):
         df = self.get_filtered_stats()
 
         if time_difference is not None:
@@ -261,6 +269,19 @@ class Stats():
 
         if channel is not None:
             df = df[df["Chn"] == channel]
+
+        if low is not None:
+            df['APulseHeight'] = df['APulseHeight'].apply(self.to_kev_a)
+            df['BPulseHeight'] = df['BPulseHeight'].apply(self.to_kev_b)
+            df = df[df["APulseHeight"] > low[0]]
+            df = df[df["BPulseHeight"] > low[1]]
+
+        if high is not None:
+            if low is None:
+                df['APulseHeight'] = df['APulseHeight'].apply(self.to_kev_a)
+                df['BPulseHeight'] = df['BPulseHeight'].apply(self.to_kev_b)
+            df = df[df["APulseHeight"] < high[0]]
+            df = df[df["BPulseHeight"] < high[1]]
 
         df["TimeDifference"] = df["TimeDifference"].apply(lambda x: x * self.resolution)
         return self.histogram(df["TimeDifference"], kind = "hist", *args, **kwargs)
@@ -285,11 +306,26 @@ class Stats():
         kwargs["bins"] = kwargs["bins"] if "bins" in kwargs else self.default_bins
         return self.histogram(df["BPulseHeight"], kind = "hist", *args, **kwargs)
 
-    def plot_channel_counts(self, sec = 1, *args, **kwargs):
+    def plot_channel_counts(self, sec=1, low=None, high=None, *args, **kwargs):
         fig, ax = plt.subplots()
         for axis in [ax.xaxis, ax.yaxis]:
             axis.set_major_locator(ticker.MaxNLocator(integer=True))
-        df = self.stats
+
+        df = self.stats[:]
+
+        if low is not None:
+            df['APulseHeight'] = df['APulseHeight'].apply(self.to_kev_a)
+            df['BPulseHeight'] = df['BPulseHeight'].apply(self.to_kev_b)
+            df = df[df["APulseHeight"] > low[0]]
+            df = df[df["BPulseHeight"] > low[1]]
+
+        if high is not None:
+            if low is None:
+                df['APulseHeight'] = df['APulseHeight'].apply(self.to_kev_a)
+                df['BPulseHeight'] = df['BPulseHeight'].apply(self.to_kev_b)
+            df = df[df["APulseHeight"] < high[0]]
+            df = df[df["BPulseHeight"] < high[1]]
+
         a = df.groupby(df['Elapsed'].apply(lambda x: round(x/sec))).count()
         a[["A", "B"]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
         ax.set_xlabel("Elapsed time (%ss)" % sec)
@@ -328,11 +364,11 @@ class Stats():
         for axis in [axes[0].xaxis, axes[0].yaxis]:
             axis.set_major_locator(ticker.MaxNLocator(integer = True))
 
-        histogram, count = self.time_difference_histogram(time_difference = time_difference, channel = channel, title = "Coincidence time difference", figsize = (16, 6), ax = axes[0], bins = self.default_bins)
+        histogram, count = self.time_difference_histogram(time_difference=time_difference, channel=channel, title="Coincidence time difference", figsize=(16, 6), ax=axes[0], bins=self.default_bins, *args, **kwargs)
         axes[0].set_xlabel("Time (s)")
         axes[0].set_ylabel("Count (%s)" % count)
 
-        scatter = self.scatter(time_difference = time_difference, channel = channel, title = "Coincidence scatter", figsize = (16, 6), ax = axes[1], grid=False)
+        scatter = self.scatter(time_difference=time_difference, channel=channel, title="Coincidence scatter", figsize=(16, 6), ax=axes[1], grid=False, *args, **kwargs)
         axes[1].set_xlabel("Channel A (%s)" % ("ADC" if self.adc_kev_ratio_a == 0 else "keV"))
         axes[1].set_ylabel("Channel B (%s)" % ("ADC" if self.adc_kev_ratio_b == 0 else "keV"))
 
