@@ -596,3 +596,32 @@ def trigger_direction(index):
         1000: 'LOGIC_LOWER',
         1001: 'LOGIC_UPPER'
     }[index]
+
+# h
+planck_constant = 6.62607015e-34 # Js
+# c
+speed_of_light = 299792458 # m/s
+# E = hc
+E = 1.98644582e-25 # m3 kg / s2
+# C = 1 keV
+electron_charge = 1.60217662e-19 # Coulombs
+
+def kev_to_wavelength(keV):
+    return 10**9 * E / (keV * electron_charge)
+
+def kev_to_frequency(keV):
+    return speed_of_light / kev_to_wavelength(keV)
+
+def conversion_table(pd, peaks_a, peaks_b, labels, kevs, indices):
+
+    df = pd.DataFrame({
+        "": labels,
+        "keV": kevs,
+        "Wavelength (nm)": [round(kev_to_wavelength(peak), 1) for peak in kevs],
+        "Frequency (s)": [int(kev_to_frequency(peak)) for peak in kevs],
+        "ADC (A)": [int(peaks_a[ind]) for ind in indices],
+        "ADC (B)": [int(peaks_b[ind]) for ind in indices]
+    }).set_index("")
+
+    df['Frequency (s)'] = df.apply(lambda x: "{:,.0f}".format(x['Frequency (s)']), axis=1)
+    return df
