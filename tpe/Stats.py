@@ -10,11 +10,16 @@ from scipy.signal import find_peaks
 from collections import Counter
 
 from tpe.functions import get_measurement_resolution, get_measurement_configurations
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pandas import Series
+from math import floor
 import pandas as pd
 import numpy as np
 import os, glob
+
+import requests
+from dateutil import tz
+from dateutil.parser import parse
 
 def calibration_line(plot, x, unit = ""):
     plot.axvline(x = x, ymin = -1, color = "g", linestyle = "--", lw = 1)
@@ -243,12 +248,12 @@ class Stats():
         max_time_difference = 500
         size_ratio = 8
 
-        def plot_size(x):
+        def point_size(x):
             diff = max_time_difference - abs(x)
             size = (max_time_difference / diff) if diff > 0 else max_time_difference
             return np.log2(size * size_ratio) * size_ratio
 
-        df['TimeDifferenceSize'] = df.loc[:, ('TimeDifference')].apply(plot_size)
+        df['TimeDifferenceSize'] = df.loc[:, ('TimeDifference')].apply(point_size)
 
         return df.plot(
             kind = "scatter",
@@ -259,7 +264,7 @@ class Stats():
             alpha = 0.5,
             edgecolors = 'none',
             *args, **kwargs
-        )
+        ), df
 
     def time_difference_histogram(self, time_difference=None, channel=None, low=None, high=None, *args, **kwargs):
         df = self.get_filtered_stats()
@@ -306,12 +311,13 @@ class Stats():
         kwargs["bins"] = kwargs["bins"] if "bins" in kwargs else self.default_bins
         return self.histogram(df["BPulseHeight"], kind = "hist", *args, **kwargs)
 
-    def plot_channel_counts(self, sec=1, low=None, high=None, *args, **kwargs):
+    def plot_channel_counts(self, sec=1, low=None, high=None, start_time=None, coincidences=False, sunlines=False, *args, **kwargs):
         fig, ax = plt.subplots()
         for axis in [ax.xaxis, ax.yaxis]:
             axis.set_major_locator(ticker.MaxNLocator(integer=True))
 
-        df = self.stats[:]
+        start_hour = self.stats["Time"].dt.hour[0]
+        df = self.get_filtered_stats(coincidences)
 
         if low is not None:
             df['APulseHeight'] = df['APulseHeight'].apply(self.to_kev_a)
@@ -326,11 +332,76 @@ class Stats():
             df = df[df["APulseHeight"] < high[0]]
             df = df[df["BPulseHeight"] < high[1]]
 
-        a = df.groupby(df['Elapsed'].apply(lambda x: round(x/sec))).count()
-        a[["A", "B"]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
+        if start_time is not None:
+            start_hour = start_time[3]
+            d = pd.Timestamp(*start_time)
+            e = df[(df["Time"] >= d) == False].copy()
+            e["Time"] = e["Time"] + pd.Timedelta(hours=24)
+            e["Elapsed"] = e["Elapsed"] + 24 * 60 * 60
+            df = pd.concat([df[df["Time"] >= d], e])
+
+        a = df.groupby(df['Elapsed'].apply(lambda x: floor(x/sec))).sum()
+
+        if start_time is not None:
+            xticks = [i % 24 for i in range(start_hour - 1, start_hour + len(a) - 1)]
+            plt.xticks(range(len(a)), xticks)
+
+            a[["A", "B"]][1:].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
+
+        else:
+            xticks = [i % 24 for i in range(start_hour, start_hour + len(a))]
+            plt.xticks(range(len(a)), xticks)
+
+            if not coincidences:
+                a[["A", "B"]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
+            else:
+                a[["A", "B"]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
+
+        if sunlines:
+            for i, n in zip(range(len(a)), xticks):
+                if n == self.sunrise_hour:
+                    plt.axvline(x = i + self.sunrise_seconds / 3600, color = 'y', label = 'Sunrise', lw=50, alpha=.25)
+                if n == self.sunset_hour:
+                    plt.axvline(x = i + self.sunset_seconds / 3600, color = 'r', label = 'Sunset', lw=50, alpha=.25)
+
         ax.set_xlabel("Elapsed time (%ss)" % sec)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+
+    def set_and_print_sunrise_and_sunset(self, longitude=25.050708, latitude=60.215023, timezone='Europe/Helsinki'):
+
+        params = {
+            "lng":longitude,
+            "lat":latitude,
+            "date":"%s-%s-%s" % (
+                self.stats["Time"].dt.year[0],
+                self.stats["Time"].dt.month[0],
+                self.stats["Time"].dt.day[0]
+            )
+        }
+
+        url = 'https://api.sunrise-sunset.org/json?formatted=0'
+
+        response = requests.get(url, params=params)
+        resp_json = response.json()
+
+        fi_tz = tz.gettz(timezone)
+
+        def date_to_time(date):
+            return parse(date).astimezone(fi_tz).strftime("%H:%I:%S")
+
+        sunrise = date_to_time(resp_json['results']['sunrise'])
+        (h, m, s) = sunrise.split(':')
+        self.sunrise_hour = int(h)
+        self.sunrise_seconds = int(m) * 60 + int(s)
+
+        sunset = date_to_time(resp_json['results']['sunset'])
+        (h, m, s) = sunset.split(':')
+        self.sunset_hour = int(h)
+        self.sunset_seconds = int(m) * 60 + int(s)
+
+        print("Sun rise: %s" % sunrise)
+        print("Sun set: %s" % sunset)
 
     def remove_top_right_spines(self, axes):
         axes[0].spines['top'].set_visible(False)
@@ -366,13 +437,56 @@ class Stats():
 
         histogram, count = self.time_difference_histogram(time_difference=time_difference, channel=channel, title="Coincidence time difference", figsize=(16, 6), ax=axes[0], bins=self.default_bins, *args, **kwargs)
         axes[0].set_xlabel("Time (s)")
-        axes[0].set_ylabel("Count (%s)" % count)
+        axes[0].set_ylabel("Count (%s) - 1 / %s s" % (
+            count,
+            timedelta(seconds = int(1./(float(count)/self.time_elapsed())) if count > 0 else 0)))
 
-        scatter = self.scatter(time_difference=time_difference, channel=channel, title="Coincidence scatter", figsize=(16, 6), ax=axes[1], grid=False, *args, **kwargs)
+        scatter, df = self.scatter(time_difference=time_difference, channel=channel, title="Coincidence scatter", figsize=(16, 6), ax=axes[1], grid=False, *args, **kwargs)
         axes[1].set_xlabel("Channel A (%s)" % ("ADC" if self.adc_kev_ratio_a == 0 else "keV"))
         axes[1].set_ylabel("Channel B (%s)" % ("ADC" if self.adc_kev_ratio_b == 0 else "keV"))
 
-        line_width = 1
+        if False:
+            from sklearn.cluster import KMeans, DBSCAN, AffinityPropagation, Birch, MiniBatchKMeans, SpectralClustering, OPTICS, MeanShift, AgglomerativeClustering
+            from sklearn.mixture import GaussianMixture
+            from numpy import unique, where
+
+            X = np.array([[i, j] for i, j in zip(df["APulseHeight"], df["BPulseHeight"])])
+            #X = [df["APulseHeight"], df["BPulseHeight"]]
+
+            model = KMeans(
+                n_clusters=6,
+                #init="k-means++",
+                init="random",
+                n_init=500,
+                max_iter=1500,
+                random_state=142
+            )
+
+            #model = GaussianMixture(n_components=2)
+            #model = AffinityPropagation(damping=0.95)
+            #model = MiniBatchKMeans(n_clusters=9)
+            model = Birch(threshold=1, n_clusters=4)
+            model.fit(X);yhat = model.predict(X)
+
+            #model = SpectralClustering(n_clusters=9)
+            #model = OPTICS(eps=0.3, min_samples=30)
+            #model = DBSCAN(eps=0.3, min_samples=30)
+            #model = MeanShift()
+
+            #model = AgglomerativeClustering(n_clusters=9)
+            #yhat = model.fit_predict(X)
+
+            #centers = model.cluster_centers_
+            clusters = unique(yhat)
+            for cluster in clusters:
+            	# get row indexes for samples with this cluster
+            	row_ix = where(yhat == cluster);
+            	# create scatter of these samples
+            	plt.scatter(X[row_ix, 0], X[row_ix, 1], alpha=0.25, edgecolors="none")
+
+            #plt.scatter(centers[:, 0], centers[:, 1], c='green', s=2000, alpha=0.25, edgecolors="black");
+
+        line_width = 2
         if self.adc_kev_ratio_a != 0 and count > 0:
             if channel == None or channel == 0:
                 if not hide_calibration:
@@ -655,6 +769,8 @@ class Stats():
         return timedelta(seconds = int(self.time_elapsed()))
 
     def print_basic_data(self):
+        r = self.coincidence_elapsed_rate()
+        cnc_rate = (" (1/%ss)" % timedelta(seconds = int(1./r))) if r < 1 else ""
         return list(map(print, [
 
             "\r\n",
@@ -680,6 +796,6 @@ class Stats():
             "Total coincidences:\t\t%s" % self.total_coincidences(),
             "Single coincidences:\t\t%s" % self.single_coincidences(),
 
-            "Coincidence elapsed rate:\t%s/s" % round(self.coincidence_elapsed_rate(), 3),
+            "Coincidence elapsed rate:\t%s/s%s" % (round(self.coincidence_elapsed_rate(), 3), cnc_rate),
             "Coincidence sample rate:\t%s/s" % round(self.coincidence_sample_rate(), 2)
         ]));
