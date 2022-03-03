@@ -20,6 +20,7 @@ import os, glob
 import requests
 from dateutil import tz
 from dateutil.parser import parse
+from fractions import Fraction
 
 def calibration_line(plot, x, unit = ""):
     plot.axvline(x = x, ymin = -1, color = "g", linestyle = "--", lw = 1)
@@ -34,19 +35,20 @@ def add_calibration_line(plot, x, unit = ""):
 
 class Stats():
 
-    def __init__(self, headers = None):
+    def __init__(self, headers = None, detector_labels = ("A", "B")):
 
         self.experiment_directory = "../experiments/*"
         self.statistics_filename = "statistics.csv"
         self.get_experiment_stat_files()
+        self.detector_labels = detector_labels
 
         if headers is None:
             self.headers = (
                 "RateCount",
                 "Time",
                 "Elapsed",
-                "A",
-                "B",
+                self.detector_labels[0],
+                self.detector_labels[1],
                 "TotA",
                 "TotB",
                 "RateA",
@@ -231,7 +233,7 @@ class Stats():
             kwargs["c"] = kwargs["c"] if "c" in kwargs else "Chn"
         else:
             df = df[df["Chn"] == channel]
-            kwargs["c"] = "Blue" if channel == 0 else "Red"
+            kwargs["c"] = "r" if channel == 0 else "b"
 
         df['APulseHeight'] = df.loc[:, ('APulseHeight')].apply(self.to_kev_a)
         df['BPulseHeight'] = df.loc[:, ('BPulseHeight')].apply(self.to_kev_b)
@@ -319,20 +321,8 @@ class Stats():
         start_hour = self.stats["Time"].dt.hour[0]
         df = self.get_filtered_stats(coincidences)
 
-        if low is not None:
-            df['APulseHeight'] = df['APulseHeight'].apply(self.to_kev_a)
-            df['BPulseHeight'] = df['BPulseHeight'].apply(self.to_kev_b)
-            df = df[df["APulseHeight"] > low[0]]
-            df = df[df["BPulseHeight"] > low[1]]
-
-        if high is not None:
-            if low is None:
-                df['APulseHeight'] = df['APulseHeight'].apply(self.to_kev_a)
-                df['BPulseHeight'] = df['BPulseHeight'].apply(self.to_kev_b)
-            df = df[df["APulseHeight"] < high[0]]
-            df = df[df["BPulseHeight"] < high[1]]
-
         if start_time is not None:
+
             start_hour = start_time[3]
             d = pd.Timestamp(*start_time)
             e = df[(df["Time"] >= d) == False].copy()
@@ -340,29 +330,54 @@ class Stats():
             e["Elapsed"] = e["Elapsed"] + 24 * 60 * 60
             df = pd.concat([df[df["Time"] >= d], e])
 
-        a = df.groupby(df['Elapsed'].apply(lambda x: floor(x/sec))).sum()
+        dfa = df[:]
+        dfb = df[:]
+
+        if low is not None:
+            dfa['APulseHeight'] = dfa['APulseHeight'].apply(self.to_kev_a)
+            dfb['BPulseHeight'] = dfb['BPulseHeight'].apply(self.to_kev_b)
+
+            dfa = dfa[dfa["APulseHeight"] > low[0]]
+            dfb = dfb[dfb["BPulseHeight"] > low[1]]
+
+        if high is not None:
+            if low is None:
+                dfa['APulseHeight'] = dfa['APulseHeight'].apply(self.to_kev_a)
+                dfb['BPulseHeight'] = dfb['BPulseHeight'].apply(self.to_kev_b)
+            dfa = dfa[dfa["APulseHeight"] < high[0]]
+            dfb = dfb[dfb["BPulseHeight"] < high[1]]
+
+
+        a = dfa.groupby(dfa['Elapsed'].apply(lambda x: floor(x/sec))).sum()
+        b = dfb.groupby(dfb['Elapsed'].apply(lambda x: floor(x/sec))).sum()
+
+        a_label = self.detector_labels[0]
+        b_label = self.detector_labels[1]
 
         if start_time is not None:
             xticks = [i % 24 for i in range(start_hour - 1, start_hour + len(a) - 1)]
             plt.xticks(range(len(a)), xticks)
 
-            a[["A", "B"]][1:].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
+            a[[a_label]][1:].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, c="r", *args, **kwargs)
+            b[[b_label]][1:].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, c="b", *args, **kwargs)
 
         else:
             xticks = [i % 24 for i in range(start_hour, start_hour + len(a))]
             plt.xticks(range(len(a)), xticks)
 
             if not coincidences:
-                a[["A", "B"]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
+                a[[a_label]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, c="r", *args, **kwargs)
+                b[[b_label]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, c="b", *args, **kwargs)
             else:
-                a[["A", "B"]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, *args, **kwargs)
+                a[[a_label]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, c="r", *args, **kwargs)
+                b[[b_label]].plot(ylabel="Clicks", kind = "line", figsize = (16,4), ax = ax, c="b", *args, **kwargs)
 
         if sunlines:
             for i, n in zip(range(len(a)), xticks):
                 if n == self.sunrise_hour:
-                    plt.axvline(x = i + self.sunrise_seconds / 3600, color = 'y', label = 'Sunrise', lw=50, alpha=.25)
+                    plt.axvline(x = i + self.sunrise_seconds / 3600, color = 'y', lw=50, alpha=.25)
                 if n == self.sunset_hour:
-                    plt.axvline(x = i + self.sunset_seconds / 3600, color = 'r', label = 'Sunset', lw=50, alpha=.25)
+                    plt.axvline(x = i + self.sunset_seconds / 3600, color = 'r', lw=50, alpha=.25)
 
         ax.set_xlabel("Elapsed time (%ss)" % sec)
         ax.spines['top'].set_visible(False)
@@ -640,15 +655,17 @@ class Stats():
         if coincidences:
             d = d[d["TimeDifference"]>0]
 
-        d = d[d["%sPulseHeight" % col] > 0]["%sPulseHeight" % col]
+        ab_label = "A" if col == "A" or col == 0 else "B"
+
+        d = d[d["%sPulseHeight" % ab_label] > 0]["%sPulseHeight" % ab_label]
 
         color = "blue"
-        if col == "A":
+        if col == "A" or col == 0:
             color = "red"
 
         line_width = 2
 
-        kevf = self.to_kev_a if col == "A" else self.to_kev_b
+        kevf = self.to_kev_a if col == "A"  or col == 0 else self.to_kev_b
         d = d.apply(kevf)
 
         v, k = np.histogram(d, bins = np.linspace(d.min(), d.max(), bins))
@@ -666,7 +683,7 @@ class Stats():
 
         axes[0].legend([Line2D([0], [0], color = color, lw = line_width)], ["Pulse Height Histogram"])
 
-        unit = "keV" if (col == "A" and self.adc_kev_ratio_a != 0) or (col == "B" and self.adc_kev_ratio_b != 0) else "ADC"
+        unit = "keV" if ((col == "A" or col == 0) and self.adc_kev_ratio_a != 0) or ((col == "B" or col == 1) and self.adc_kev_ratio_b != 0) else "ADC"
 
         new_ticks = np.linspace(0, d.max(), 8)
         s = pd.Series(v, index = k[:-1])
@@ -769,8 +786,12 @@ class Stats():
         return timedelta(seconds = int(self.time_elapsed()))
 
     def print_basic_data(self):
+
         r = self.coincidence_elapsed_rate()
         cnc_rate = (" (1/%ss)" % timedelta(seconds = int(1./r))) if r < 1 else ""
+
+        ratio = self.rate_a() / self.rate_b()
+
         return list(map(print, [
 
             "\r\n",
@@ -797,5 +818,11 @@ class Stats():
             "Single coincidences:\t\t%s" % self.single_coincidences(),
 
             "Coincidence elapsed rate:\t%s/s%s" % (round(self.coincidence_elapsed_rate(), 3), cnc_rate),
-            "Coincidence sample rate:\t%s/s" % round(self.coincidence_sample_rate(), 2)
+            "Coincidence sample rate:\t%s/s" % round(self.coincidence_sample_rate(), 2),
+
+            "\r\n",
+
+            "Count A / Count B:\t\t%f (%s)" % (ratio, Fraction(round(ratio, 2)).limit_denominator())
+
+
         ]));
